@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from . import mycli
+from . import transai
 
 if __name__ == '__main__':
-  mycli.Run()
+  transai.Run()

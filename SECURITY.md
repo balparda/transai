@@ -2,7 +2,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Security Policy
 
-This repository is a template for Python CLI applications. Security issues always matter. If you believe you’ve found a vulnerability, please report it privately.
+This repository is an AI library. Security issues always matter. If you believe you’ve found a vulnerability, please report it privately.
 
 - [Security Policy](#security-policy)
   - [Supported Versions](#supported-versions)
@@ -28,7 +28,7 @@ Use one of the following options:
 
 2) **Email**
 
-   - Send a report to: ***TODO:*** *\<security contact email\>*
+   - Send a report to: **Daniel Balparda <balparda@github.com>**
    - Suggested subject: `[SECURITY] <short summary>`
 
 ## What to include

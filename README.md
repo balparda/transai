@@ -1,40 +1,21 @@
 <!-- SPDX-FileCopyrightText: Copyright 2026 Daniel Balparda <balparda@github.com> -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# poetrycli - Python/Poetry/Typer/Rich CLI Template
+# transai
 
-***TODO:*** *One-line description of what this CLI does and who it’s for. Change the title above.*
+AI library and helpers (Python/Poetry/Typer - LM Studio & llama.cpp).
 
-- **Primary use case:** *<e.g., bulk process files, manage deployments, query APIs>*
-- **Works with:** *<e.g., local files, Git repos, Kubernetes, AWS, JSON logs>*
-- **Status:** *<stable | beta | experimental>*
-- **License:** *<MIT | Apache-2.0 | GPL-3.0 | Proprietary>*
+- **Primary use case:** *python API/interface with local AI models*
+- **Works with:** *local AI models*
+- **Status:** *stable*
+- **License:** *Apache-2.0*
 
 ***TODO:*** *throughout this documentation* ***ITALICS*** *mark* ***placeholder content*** *that a new project would typically want to edit with its own information.*
 
-***TODO:*** *If you are starting a new project, there are lots of instructions and useful information in the* "[Appendix **I**: Using the `poetrycli` template](#appendix-i-using-the-poetrycli-template)" *and* [Appendix **II**: Template Checklist](#appendix-ii-template-checklist-turning-poetrycli-into-your-new-cli-project-in-12-steps) *sections.*
-
-**`poetrycli`** is a **template** for building modern Python CLI applications using:
-
-- **Python 3.12** or **Python 3.13** or **Python 3.14**
-- **Poetry** for packaging, dependency management, and `venv` workflow
-- **Typer** for CLI structure (commands, options, subcommands, help)
-- **Transcrypto** for CLI modules, logging, humanization, crypto, random, hash, serialization, etc
-- **Rich** for consistent console output and pretty logging
-- **Ruff** for formatting + linting
-- **MyPy** (and **Pyright/Pylance/typeguard**) for strict type checking
-- **Pytest + coverage** for tests
-- **pre-commit** + **GitHub Actions CI** to keep everything enforced automatically
-- **dependabot** + **codeql** to keep dependencies always up-to-date and security issues at bay
-
-The `poetrycli` repo is intentionally opinionated because it was built to help the authors (2-space indentation, single quotes, strict typing, “select ALL rules” linting are examples) but includes escape hatches and ***TODO*** markers to customize quickly. Started in Jan/2026, by ***Daniel Balparda***.
-
-*Since version 0.1.0 it is PyPI package: <https://pypi.org/project/foobarnotreally/>*
-
-***TODO:*** *change this header to match your project's conditions.*
+*Since version 1.0.0 it is PyPI package: <https://pypi.org/project/transai/>*
 
 ## Table of contents
 
-- [poetrycli - Python/Poetry/Typer/Rich CLI Template](#poetrycli---pythonpoetrytyperrich-cli-template)
+- [transai](#transai)
   - [Table of contents](#table-of-contents)
   - [License](#license)
     - [*Third-party notices (TODO)*](#third-party-notices-todo)
@@ -128,40 +109,6 @@ The `poetrycli` repo is intentionally opinionated because it was built to help t
       - [*How do I migrate from version X to Y? (TODO)*](#how-do-i-migrate-from-version-x-to-y-todo)
       - [*How stable is the JSON output? (TODO)*](#how-stable-is-the-json-output-todo)
   - [*Glossary (TODO)*](#glossary-todo)
-  - [Appendix **I**: Using the `poetrycli` template](#appendix-i-using-the-poetrycli-template)
-    - [New Projects](#new-projects)
-      - [Rename the package + CLI entrypoint](#rename-the-package--cli-entrypoint)
-      - [Update app name used for config paths](#update-app-name-used-for-config-paths)
-      - [Pick a Python version (skip if 3.12 is good)](#pick-a-python-version-skip-if-312-is-good)
-      - [Customize CLI banner + top-level options](#customize-cli-banner--top-level-options)
-      - [Optional: adjust style/lint strictness](#optional-adjust-stylelint-strictness)
-    - [`poetrycli` Features explained](#poetrycli-features-explained)
-      - [CLI design (Typer)](#cli-design-typer)
-      - [Rich logging + Console singleton (`transcrypto`)](#rich-logging--console-singleton-transcrypto)
-      - [Separation of CLI and business logic](#separation-of-cli-and-business-logic)
-      - [Config management (`transcrypto.util.config`)](#config-management-transcryptoutilconfig)
-      - [Strict linting + formatting with Ruff (pyproject.toml)](#strict-linting--formatting-with-ruff-pyprojecttoml)
-      - [Typing checks (MyPy + Pyright)](#typing-checks-mypy--pyright)
-      - [Tests + coverage (`pytest`)](#tests--coverage-pytest)
-      - [Pre-commit checks](#pre-commit-checks)
-      - [CI (GitHub Actions)](#ci-github-actions)
-  - [Appendix **II**: Template Checklist: turning `poetrycli` into your new CLI project in 12 steps](#appendix-ii-template-checklist-turning-poetrycli-into-your-new-cli-project-in-12-steps)
-    - [0: Prerequisites (one-time per machine)](#0-prerequisites-one-time-per-machine)
-    - [1: Decide your identity](#1-decide-your-identity)
-    - [2: Rename the Python package directory](#2-rename-the-python-package-directory)
-    - [3: Update `pyproject.toml` (the big one)](#3-update-pyprojecttoml-the-big-one)
-    - [3.1 Required metadata](#31-required-metadata)
-      - [3.2: Poetry packaging + entrypoint wiring](#32-poetry-packaging--entrypoint-wiring)
-      - [3.3: If you change Python version…](#33-if-you-change-python-version)
-    - [4: Sync the runtime `__version__`](#4-sync-the-runtime-__version__)
-    - [5: Update config app name](#5-update-config-app-name)
-    - [6: Review lint policy (Ruff)](#6-review-lint-policy-ruff)
-    - [7: Run the full validation suite (before first commit)](#7-run-the-full-validation-suite-before-first-commit)
-    - [8: First release workflow (suggested)](#8-first-release-workflow-suggested)
-    - [9:  Update README](#9--update-readme)
-    - [10: Customize the CLI global flags](#10-customize-the-cli-global-flags)
-    - [11: “Cleanup”](#11-cleanup)
-    - [12: Done: Start building your project](#12-done-start-building-your-project)
 
 ## License
 
@@ -205,8 +152,9 @@ pip3 install <your_pkg>
 - **[rich 14.2+](https://pypi.org/project/rich/)** - Render rich text, tables, progress bars, syntax highlighting, markdown and more to the terminal - [documentation](https://rich.readthedocs.io/en/latest/)
 - **[typer 0.21+](https://pypi.org/project/typer/)** - CLI parser - [documentation](https://typer.tiangolo.com/)
 - **[transcrypto 2.1+](https://pypi.org/project/transcrypto/)** - CLI modules, logging, humanization, crypto, random, hash, serialization, config management, etc. - [documentation](https://github.com/balparda/transcrypto)
-- **[poetrycli](https://github.com/balparda/poetrycli)** - CLI app templates and utils
-- ***TODO:*** *add your main dependencies here too*
+- **[llama-cpp-python](https://pypi.org/project/llama-cpp-python/)** - Llama AI python bindings
+- **[lmstudio](https://pypi.org/project/lmstudio/)** - LM Studio API
+- **[Pillow](https://pypi.org/project/pillow/)** - Python images
 
 ## *Context / Problem Space (TODO)*
 
@@ -316,7 +264,7 @@ General shape:
 
 This software auto-generates docs for CLI apps:
 
-- [**`mycli`** documentation](mycli.md)
+- [**`transai`** documentation](transai.md)
 
 ### *Configuration (TODO)*
 
@@ -479,7 +427,7 @@ Styles you can combine with colors are: `bold`, `dim`, `italic`, `underline`, `b
 ├── CHANGELOG.md                  ⟸ latest changes/releases
 ├── LICENSE
 ├── Makefile
-├── mycli.md                      ⟸ this is auto-generated CLI doc (by `make docs` or `make ci`)
+├── transai.md                      ⟸ this is auto-generated CLI doc (by `make docs` or `make ci`)
 ├── poetry.lock                   ⟸ this is maintained by Poetry, do not manually edit
 ├── pyproject.toml                ⟸ most important configurations live here
 ├── README.md                     ⟸ this documentation
@@ -500,14 +448,14 @@ Styles you can combine with colors are: `bold`, `dim`, `italic`, `underline`, `b
 ├── scripts/
 │   └── template.py               ⟸ Use template & directory for executable standalone scripts
 ├── src/
-│   └── <your_pkg>/               ⟸ change this directory's name (originally mycli)
+│   └── <your_pkg>/               ⟸ change this directory's name (originally transai)
 │       ├── __init__.py
 │       ├── __main__.py
-│       ├── mycli.py              ⟸ Main CLI app entry point (Main())
+│       ├── transai.py              ⟸ Main CLI app entry point (Main())
 │       ├── py.typed
 │       ├── cli/
 │       │   ├── __init__.py
-│       │   └── randomcommand.py  ⟸ CLI commands implementation, to keep `mycli.py` clean
+│       │   └── randomcommand.py  ⟸ CLI commands implementation, to keep `transai.py` clean
 │       ├── core/
 │       │   ├── __init__.py
 │       │   └── example.py        ⟸ Business logic goes in this directory
@@ -515,8 +463,8 @@ Styles you can combine with colors are: `bold`, `dim`, `italic`, `underline`, `b
 │           ├── __init__.py
 │           └── template.py       ⟸ Use template for starting regular modules
 ├── tests/                        ⟸ Unit-Testing goes in this directory
-│   ├── mycli_test.py
-│   └── ...                       ⟸ Usually, a similar structure to `src/mycli/...`
+│   ├── transai_test.py
+│   └── ...                       ⟸ Usually, a similar structure to `src/transai/...`
 └── tests_integration/
     └── test_installed_cli.py     ⟸ Integration testing goes in this directory
 ```
@@ -533,8 +481,6 @@ Specifically note and use the templates.
 
 - **`src/<your_pkg>/utils/template.py`** is a suggested “module docstring skeleton” (purpose, API, inputs, errors, security, etc.). Copy it when creating new modules.
 - **`scripts/template.py`** is a suggested “executable script skeleton” (with shebang) that imports and calls into the package. Scripts should remain thin.
-
-Make sure you are familiar with the [`poetrycli` Features explained](#poetrycli-features-explained) for this project so you understand the philosophy behind developing for the structure here.
 
 ### Development Setup
 
@@ -599,8 +545,8 @@ poetry config virtualenvs.in-project true
 #### Get the repository
 
 ```sh
-git clone https://github.com/balparda/poetrycli.git poetrycli  # TODO: change to your project's repo
-cd poetrycli
+git clone https://github.com/balparda/transai.git transai
+cd transai
 ```
 
 #### Create environment and install dependencies
@@ -613,7 +559,7 @@ poetry sync                # sync env to project's poetry.lock file
 poetry env info            # no-op: just to check that environment looks good
 poetry check               # no-op: make sure all pyproject.toml fields are being used correctly
 
-poetry run mycli --help    # simple test if everything loaded OK
+poetry run transai --help    # simple test if everything loaded OK
 make ci                    # should pass OK on clean repo
 ```
 
@@ -723,9 +669,9 @@ You can instrument your code to find bottlenecks:
 
 ```sh
 $ source .venv/bin/activate
-$ which mycli
-/path/to/.venv/bin/mycli  # <== place this in the command below:
-$ pyinstrument -r html -o output1.html -- /path/to/.venv/bin/mycli <your-cli-command> <your-cli-flags>
+$ which transai
+/path/to/.venv/bin/transai  # <== place this in the command below:
+$ pyinstrument -r html -o output1.html -- /path/to/.venv/bin/transai <your-cli-command> <your-cli-flags>
 $ deactivate
 ```
 
@@ -795,8 +741,6 @@ make type  # equivalent to: poetry run mypy src tests tests_integration
 - *CLI reference generation:*
 
 ### Versioning and releases
-
-Make sure you are familiar with the [`poetrycli` Features explained](#poetrycli-features-explained) for this project so you understand the philosophy behind developing for the structure here.
 
 #### Versioning scheme
 
@@ -957,479 +901,6 @@ The project has a [**codeql**](https://codeql.github.com/docs/) config file in `
 
 - A
 - B
-
-## Appendix **I**: Using the `poetrycli` template
-
-### New Projects
-
-If you are starting a new CLI app based on [`poetrycli`](https://github.com/balparda/poetrycli), then these are the steps to follow. Know that if you just used the `poetrycli` template to start a new repository then your files in this repo include many `# TODO:` markers to guide you on where to change the files.
-
-**(Note there is also an [Appendix **II**: Template Checklist](#appendix-ii-template-checklist-turning-poetrycli-into-your-new-cli-project-in-12-steps))**
-
-The suggested instructions to start with is:
-
-#### Rename the package + CLI entrypoint
-
-1. Rename the package directory: `src/mycli/` → `src/<your_pkg>/`
-
-1. Update the script entrypoint in `pyproject.toml`:
-
-```toml
-[tool.poetry.scripts]
-mycli = "mycli.cli:app" → <yourcli> = "<your_pkg>.cli:app"
-```
-
-1. Update Poetry packaging (change `mycli` to your package name):
-
-```toml
-[tool.poetry]
-packages = [{ include = "<your_pkg>", from = "src" }]
-```
-
-1. Update the project metadata:
-
-```toml
-[project]
-name = "<your_pkg>" → your PyPI/project name
-also change version, description, authors, classifiers
-
-[project.urls]
-change GitHub URLs and others
-```
-
-1. Update `src/<your_pkg>/__init__.py`: keep `__version__ = "..."` in sync with `[project].version`.
-
-#### Update app name used for config paths
-
-The template uses `transcrypto.util.config` for configuration management. To set your app name, update it wherever you initialize configuration in your CLI:
-
-```py
-from transcrypto.util import config as cfg
-
-# Initialize config with your app name
-config = cfg.Config(app_name='<your_pkg>', config_name='<config_file_name>')
-```
-
-This ensures config files are stored in OS-specific directories. Also edit `Makefile` replacing occurrences of `mycli`.
-
-#### Pick a Python version (skip if 3.12 is good)
-
-This template currently targets **Python 3.12** (or **Python 3.13** or **Python 3.14**). It may possibly work with more versions, but these ones the authors have tested. If you want a different Python version, update the “Python version cluster” in multiple places, *at least* update all of these:
-
-- `pyproject.toml`:
-  - [project.classifiers] (e.g., "Programming Language :: Python :: 3.12")
-  - [project.requires-python] (e.g., ">=3.12")
-  - [tool.poetry.dependencies].python (e.g., "^3.12")
-  - [tool.ruff].target-version (e.g., "py312")
-  - [tool.mypy].python_version (e.g., "3.12")
-  - [tool.pyright].pythonVersion (e.g., "3.12")
-- `.github/workflows/ci.yaml`: matrix `python-version`
-- `README.md` (this file): Python version references in install instructions
-
-After changing versions, re-create your `.venv` (if you have already created it):
-
-```sh
-rm -rf .venv
-make  # equivalent to: poetry install
-```
-
-#### Customize CLI banner + top-level options
-
-In `src/<your_pkg>/cli.py`, `Main()` prints a banner and logs an example warning:
-
-- Replace banner text (`“<your_pkg>”`, email, etc.)
-- Remove example options you don’t want (`--foo`, `--bar`) or rename them into real app options
-
-#### Optional: adjust style/lint strictness
-
-[Ruff rule reference](https://docs.astral.sh/ruff/rules/). This template currently uses:
-
-```toml
-[tool.ruff.lint]
-select = ["ALL"]
-ignore = [...a few specific ones...]
-```
-
-If that’s too strict for your team, you can:
-
-- Keep `ALL` and expand the `ignore = [...]` list, or
-- Remove `ALL` and select only the groups you want that come commented out by default.
-
-### `poetrycli` Features explained
-
-This documents how to use [`poetrycli`](https://github.com/balparda/poetrycli)-derived projects. Some things here are a result of how this project is organized and meant to be used. Others may be good ideas regardless.
-
-Before continuing it makes sense to make sure you are familiar with the [Development Instructions](#development-instructions) and have gone over the [Development Setup](#development-setup) and understand the [File structure](#file-structure) of the project.
-
-#### CLI design (Typer)
-
-The CLI is defined as a **Typer** application object:
-
-```py
-app = typer.Typer(add_completion=True, no_args_is_help=True)
-```
-
-A single callback works as the global “constructor”:
-
-```py
-@app.callback(invoke_without_command=True)
-```
-
-supports out-of-the-box:
-
-- `--version` flag (prints version and exits)
-- `-v/--verbose` (verbosity counter)
-- example options `--foo` and `--bar`
-
-Verbosity is an integer counter:
-
-- no `-v`: verbosity = 0 → `ERROR` level logging
-- `-v`: verbosity = 1 → `WARNING` level logging
-- `-vv`: verbosity = 2 → `INFO` level logging
-- `-vvv`: verbosity >= 3 → `DEBUG` level logging
-
-The callback calls:
-
-```py
-console = cli_logging.InitLogging(verbose)
-```
-
-That configures logging and installs a shared **Rich** console singleton. Commands included out-of-the-box:
-
-- `poetry run <yourcli> config-path` → prints the config file path
-- `poetry run <yourcli> hello [name]` → prints `Hello, <name>!`
-
-Subcommand **example** group included:
-
-- `poetry run <yourcli> random num --min 0 --max 100`
-- `poetry run <yourcli> random str --length 16 [--alphabet ...]`
-
-This is implemented via:
-
-```py
-_random_app = typer.Typer(no_args_is_help=True)
-app.add_typer(_random_app, name='random', help='Random utilities.')
-```
-
-#### Rich logging + Console singleton (`transcrypto`)
-
-Logging and console singleton functionality is provided by the **transcrypto** library (`transcrypto.utils.logging`). `Console()` returns the global singleton if initialized, otherwise returns a fallback `rich.console.Console()`. This allows any command do:
-
-```py
-from transcrypto.utils import logging as cli_logging
-
-console = cli_logging.Console()
-console.print(...)
-```
-
-without worrying whether logging was initialized, which should be done only once:
-
-```py
-InitLogging(verbosity, include_process=False, soft_wrap=False)
-```
-
-this:
-
-- creates a **Rich** `Console(soft_wrap=...)`
-- configures Python logging with `RichHandler`
-- sets logging level based on verbosity
-- sets `force=True` in `logging.basicConfig(...)` to override prior config
-- normalizes logging for “common providers” (uvicorn/gunicorn/etc.) to propagate into your handler
-- logs a startup info line: Logging initialized at level ...
-
-*Testing note:* For tests that rely on fresh logging init, call `ResetConsole()` in an `autouse` fixture (there is an example in `tests/test_cli.py`). This prevents cross-test leakage of the singleton.
-
-#### Separation of CLI and business logic
-
-Commands call into `src/<your_pkg>/core/example.py`, which should contain your business logic. Why this pattern is useful:
-
-- CLI remains thin and testable
-- Business logic can be tested independently (and reused elsewhere)
-- Mocking business logic is cleaner
-
-#### Config management (`transcrypto.util.config`)
-
-This template uses `transcrypto.util.config` for cross-platform configuration management. Basic usage:
-
-```py
-from transcrypto.util import config as app_config
-
-# Initialize config with your app name
-config = app_config.Config('mycli', 'myconfig.bin')
-
-config_dir = config.dir  # Path object to config directory
-config_path = config.path  # Path object to config file ('myconfig.bin')
-
-data = config.DeSerialize()  # loads default config object as a python object
-config.Serialize({'key': 'new_value'})  # saves python object to default config file
-```
-
-The `Serialize`/`DeSerialize` methods are powerful `transcrypto` primitives that allow for, for example, strong encryption of your configs.
-
-#### Strict linting + formatting with Ruff (pyproject.toml)
-
-This template uses Ruff for both: `ruff check` (lint) and `ruff format` (format). Key formatting opinions:
-
-```toml
-indent-width = 2
-quote-style = "single"
-docstring-code-format = true
-```
-
-Lint configuration by default selects `ALL` rules, then ignores specific rules that conflict with this template’s choices. Notable ignores:
-
-- `N802`: allow PascalCase for function/method names
-- `E111`, `E114`: allow 2-space indentation
-- formatter-conflict ignores: `D203`, `D213`, `COM812`
-- `TC002`: allow “third-party import only used for typing” patterns
-- a few practical exceptions for CLI ergonomics and TODO policy
-
-If you want a calmer baseline, remove `"ALL"` and explicitly select rule groups.
-
-#### Typing checks (MyPy + Pyright)
-
-This repo supports strict typing in three ways:
-
-- **MyPy**: configured via `[tool.mypy]` in `pyproject.toml` (`strict = true`, plus many explicit strict flags)
-- **Pyright/Pylance**: configured via `[tool.pyright]` in `pyproject.toml` (`typeCheckingMode = "strict"`)
-- **typeguard**: configured in `[tool.pytest.ini_options.typeguard-*]` in `pyproject.toml`
-
-VSCode uses Pylance by default, so you get IDE-time feedback and CI-time enforcement. `typeguard` will be active during tests by default. You can suppress type checking in specific tests by invoking `@typeguard.suppress_type_checks` decorator or context:
-
-```py
-import typeguard
-
-@typeguard.suppress_type_checks
-def test_crazy_types() -> None:
-  # whole method is exempt from typeguard
-
-def test_less_crazy_types_test() -> None:
-  # this part of test is type-checked
-  with typeguard.suppress_type_checks():
-    # this part is not type checked
-```
-
-#### Tests + coverage (`pytest`)
-
-Tests run with `pytest`, and CI runs coverage:
-
-```sh
-make cov  # equivalent to: poetry run pytest --cov=src --cov-report=term-missing
-```
-
-Coverage configuration in `pyproject.toml` omits:
-
-- `*/__init__.py`
-- `*/__main__.py`
-- `*/template.py`
-
-Rationale: these files should remain “thin” and are usually not meaningful coverage targets.
-
-#### Pre-commit checks
-
-File `.pre-commit-config.yaml` defines pre-submit hooks:
-
-```sh
-poetry run pre-commit install
-```
-
-Run on all files:
-
-```sh
-make precommit  # equivalent to: poetry run pre-commit run --all-files
-```
-
-#### CI (GitHub Actions)
-
-File `.github/workflows/ci.yaml` runs on pushes and PRs:
-
-- `poetry install`
-- `ruff check .`
-- `ruff format --check .`
-- `mypy src tests tests_integration`
-- `pytest --cov=src --cov-report=term-missing`
-
-CI is the “source of truth” that the template remains clean.
-
-## Appendix **II**: Template Checklist: turning `poetrycli` into your new CLI project in 12 steps
-
-This checklist is designed to be **mechanical**: do every step, run the commands, and you’ll end up with a renamed, clean, working project.
-
-### 0: Prerequisites (one-time per machine)
-
-- Install **Python 3.12** (or your chosen target version).
-- Install Poetry via `pipx`:
-
-```sh
-python3 -m pip install --user pipx
-python3 -m pipx ensurepath
-pipx install poetry
-```
-
-- Configure Poetry to put the virtualenv in-project:
-
-```sh
-poetry config virtualenvs.in-project true
-```
-
-### 1: Decide your identity
-
-Choose:
-
-- **project name** (PyPI name): e.g. `coolcli`
-- **package name** (import name): e.g. `coolcli` (usually same as project name)
-- **CLI command** name: e.g. `cool`
-- **app config name**: e.g. `coolcli` (used for config directories)
-
-### 2: Rename the Python package directory
-
-1. Rename the package folder: `src/mycli/` → `src/<your_pkg>/`
-1. Search/replace imports:
-
-   - `from mycli ...` → `from <your_pkg> ...`
-   - `import mycli ...` → `import <your_pkg> ...`
-
-1. Update tests that import the CLI app (e.g. `tests/test_cli.py`).
-
-### 3: Update `pyproject.toml` (the big one)
-
-Open `pyproject.toml` and update all the `# TODO:` markers.
-
-### 3.1 Required metadata
-
-Under `[project]`:
-
-- `name = "mycli"` → your project name
-- `version = "0.1.0"` → your initial version
-- `description = ...`
-- `authors = [...]`
-- `license = ...`
-- `classifiers` (especially the Python version classifier)
-- `requires-python = ">=3.12"` (or your chosen version)
-- `license-files = ["LICENSE"]` (keep unless you change licensing docs)
-
-Under `[project.urls]`:
-
-- Homepage/Repository/Issues/Changelog → update to your repo URLs
-
-#### 3.2: Poetry packaging + entrypoint wiring
-
-- Under `[tool.poetry]`: `packages = [{ include = "mycli", from = "src" }]` → update `include` to your package name
-- Under `[tool.poetry.scripts]`: `mycli = "mycli.cli:app"` → update both sides:
-  - CLI command name (left)
-  - import path (right) to match your renamed package
-- Do the exact same under `[project.scripts]`
-- In `.github/workflows/ci.yaml` update `mycli` name in `typeguard-packages`
-
-#### 3.3: If you change Python version…
-
-There are **at least six** places to update (the file literally warns you). Update all of:
-
-- `[project.classifiers]` → `Programming Language :: Python :: 3.xx`
-- `[project.requires-python]`
-- `[tool.poetry.dependencies] python = ...`
-- `[tool.ruff] target-version = "py3xx"`
-- `[tool.mypy] python_version = "3.xx"`
-- `[tool.pyright] pythonVersion = "3.xx"`
-
-Also update:
-
-- `.github/workflows/ci.yaml` python matrix version.
-- README references
-
-### 4: Sync the runtime `__version__`
-
-The CLI prints `__version__` from your package. Update:
-
-- `src/<your_pkg>/__init__.py` → `__version__ = "<same as pyproject.toml>"`
-
-Update tests that assert version output (there is a version test).
-
-### 5: Update config app name
-
-The template uses `transcrypto.util.config` for configuration. Update the `app_name` parameter wherever you initialize config in your CLI code:
-
-```py
-from transcrypto.util import config as cfg
-
-config = cfg.Config('mycli', 'config.bin')  # ← change 'mycli' to your app name
-```
-
-This affects where the OS-native config directory lives (e.g., `~/.config/<app_name>/` on Linux).
-
-Also go into `Makefile` and replace occurrences of `mycli`. Same thing with the integration tests, go into `tests_integration/test_installed_cli.py` and change the app and CLI name there.
-
-### 6: Review lint policy (Ruff)
-
-This template uses `select = ["ALL"]` and then ignores a curated list. Decide:
-
-- Keep `ALL` (recommended if you like strictness), or
-- Replace `ALL` with a smaller `select` list.
-
-If you want to keep *PascalCase* methods:
-
-- Ensure `N802` remains ignored (that’s the “function name should be lowercase” complaint).
-
-### 7: Run the full validation suite (before first commit)
-
-From repo root:
-
-```bash
-make     # equivalent to: poetry install
-make ci  # runs complete CI pipeline
-```
-
-Expected:
-
-- Pytest: green
-- Integration: green
-- Ruff: no diffs after `ruff format .`
-- Ruff lint: clean
-- MyPy: clean
-- Coverage: acceptable (note: init/template files are omitted by design)  ￼
-
-### 8: First release workflow (suggested)
-
-1. Ensure version is correct: confirm in `pyproject.toml` + `__init__.py`
-1. Run the full validation suite ([Step 7](#7-run-the-full-validation-suite-before-first-commit))
-1. Commit, tag, and publish per your release process
-
-### 9:  Update README
-
-- Delete this "Appendix II" from the docs
-- You probably want to at least partially keep the rest of the documentation
-- Look for TODOs and *ITALICS* for places to edit
-- Not all topics and sections are relevant for every project: pick the ones you want, and maybe delete the rest
-- rename “mycli” references, usage examples, repo links
-- `CHANGELOG.md` (reset it to your new project)
-- `SECURITY.md` (make sure contact details are up to date)
-- `LICENSE` file and [README header](#license) if your project changes license/ownership
-
-### 10: Customize the CLI global flags
-
-In `src/<your_pkg>/cli.py`, update:
-
-- the `MyCLIConfig` structure
-- global options in `Main()` (you probably want to leave `--version`, `--verbose` and `--color`)
-- `help=` and `epilog=` for your commands and options
-
-### 11: “Cleanup”
-
-Once your project is real:
-
-- Remove or repurpose the example commands (Hello, random, etc.)
-- Remove `scripts/template.py` if you don’t use direct executable scripts
-- Remove `src/<pkg>/utils/template.py` once everyone knows the pattern
-- Tighten or relax Ruff ignores based on your team’s preferences
-
-### 12: Done: Start building your project
-
-*Congratulations! You should have a working project.* Next steps suggestions:
-
-- Edit this `README.md` with information specific to your project.
-- Start building your CLI logic, replacing the toy one provided here.
-- Add unit tests for core logic and CLI wiring (use Typer's `CliRunner`).
-- Add and maintain integration tests that validate packaging and the installed console script.
 
 ---
 

@@ -8,8 +8,8 @@ Why this exists (vs normal unit tests):
 - This test validates *packaging*: the wheel builds, installs, and the console script works.
 
 What we verify:
-- `mycli --version` prints the expected version.
-- `mycli --no-color hello Ada` runs successfully and produces non-ANSI output.
+- `transai --version` prints the expected version.
+- `transai --no-color hello Ada` runs successfully and produces non-ANSI output.
 """
 
 from __future__ import annotations
@@ -20,17 +20,17 @@ import shutil
 import pytest
 from transcrypto.utils import base, config
 
-import mycli
+import transai
 
-_APP_NAME: str = 'mycli'  # this is the directory name, the package name  # TODO: change
-_APP_NAMES: set[str] = {'mycli'}  # this is the console scripts names  # TODO: change
+_APP_NAME: str = 'transai'  # this is the directory name, the package name
+_APP_NAMES: set[str] = {'transai'}  # this is the console scripts names
 
 
 @pytest.mark.integration
 def test_installed_cli_smoke(tmp_path: pathlib.Path) -> None:
   """Build wheel, install into a clean venv, run the installed CLIs."""
   repo_root: pathlib.Path = pathlib.Path(__file__).resolve().parents[1]
-  expected_version: str = mycli.__version__
+  expected_version: str = transai.__version__
   vpy, bin_dir = config.EnsureAndInstallWheel(repo_root, tmp_path, expected_version, _APP_NAMES)
   cli_paths: dict[str, pathlib.Path] = config.EnsureConsoleScriptsPrintExpectedVersion(
     vpy, bin_dir, expected_version, _APP_NAMES
@@ -43,8 +43,8 @@ def test_installed_cli_smoke(tmp_path: pathlib.Path) -> None:
 def _hello_call(cli_paths: dict[str, pathlib.Path], data_dir: pathlib.Path, /) -> None:
   try:  # type: ignore[unreachable]
     # basic command smoke test; use --no-color to avoid ANSI codes in asserts.
-    r = base.Run([str(cli_paths['mycli']), '--no-color', 'hello', 'Ada'])  # TODO: change
-    assert 'Hello, Ada!' in r.stdout
+    r = base.Run([str(cli_paths['transai']), '--version'])  # TODO: change
+    assert '1.' in r.stdout
     assert '\x1b[' not in r.stdout  # no ANSI escape sequences
     assert '\x1b[' not in r.stderr
   finally:

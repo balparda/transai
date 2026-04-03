@@ -1,12 +1,12 @@
 <!-- cspell:disable -->
 <!-- auto-generated; DO NOT EDIT! see base.GenerateTyperHelpMarkdown() -->
 
-# `mycli` Command-Line Interface
+# `transai` Command-Line Interface
 
 ```text
-Usage: mycli [OPTIONS] COMMAND [ARGS]...                                                                                                                  
+Usage: transai [OPTIONS] COMMAND [ARGS]...                                                                                                                
                                                                                                                                                            
- MyCLI does amazing things!                                                                                                                                
+ AI library and helpers (Python/Poetry/Typer - LM Studio & llama.cpp)                                                                                      
                                                                                                                                                            
 ╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ --version                                                        Show version and exit.                                                                 │
@@ -20,44 +20,15 @@ Usage: mycli [OPTIONS] COMMAND [ARGS]...
 │ --help                                                           Show this message and exit.                                                            │
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Commands ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ markdown    Emit Markdown docs for the CLI (see README.md section "Creating a New Version").                                                            │
-│ configpath  Print the config file path.                                                                                                                 │
-│ hello       Say hello.                                                                                                                                  │
-│ random      Random utilities.                                                                                                                           │
+│ markdown  Emit Markdown docs for the CLI (see README.md section "Creating a New Version").                                                              │
+│ random    Random utilities.                                                                                                                             │
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-## `mycli configpath` Command
+## `transai markdown` Command
 
 ```text
-Usage: mycli configpath [OPTIONS]                                                                                                                         
-                                                                                                                                                           
- Print the config file path.                                                                                                                               
-                                                                                                                                                           
-╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ --help          Show this message and exit.                                                                                                             │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-```
-
-## `mycli hello` Command
-
-```text
-Usage: mycli hello [OPTIONS] [NAME]                                                                                                                       
-                                                                                                                                                           
- Say hello.                                                                                                                                                
-                                                                                                                                                           
-╭─ Arguments ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│   name      [NAME]                                                                                                                      │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ --help          Show this message and exit.                                                                                                             │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-```
-
-## `mycli markdown` Command
-
-```text
-Usage: mycli markdown [OPTIONS]                                                                                                                           
+Usage: transai markdown [OPTIONS]                                                                                                                         
                                                                                                                                                            
  Emit Markdown docs for the CLI (see README.md section "Creating a New Version").                                                                          
                                                                                                                                                            
@@ -67,14 +38,14 @@ Usage: mycli markdown [OPTIONS]
                                                                                                                                                            
  Example:                                                                                                                                                  
                                                                                                                                                            
- $ poetry run mycli markdown > mycli.md                                                                                                                    
+ $ poetry run transai markdown > transai.md                                                                                                                
  <<saves CLI doc>>
 ```
 
-## `mycli random` Command
+## `transai random` Command
 
 ```text
-Usage: mycli random [OPTIONS] COMMAND [ARGS]...                                                                                                           
+Usage: transai random [OPTIONS] COMMAND [ARGS]...                                                                                                         
                                                                                                                                                            
  Random utilities.                                                                                                                                         
                                                                                                                                                            
@@ -87,10 +58,10 @@ Usage: mycli random [OPTIONS] COMMAND [ARGS]...
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-### `mycli random num` Sub-Command
+### `transai random num` Sub-Command
 
 ```text
-Usage: mycli random num [OPTIONS]                                                                                                                         
+Usage: transai random num [OPTIONS]                                                                                                                       
                                                                                                                                                            
  Generate a random integer.                                                                                                                                
                                                                                                                                                            
@@ -101,10 +72,10 @@ Usage: mycli random num [OPTIONS]
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-### `mycli random str` Sub-Command
+### `transai random str` Sub-Command
 
 ```text
-Usage: mycli random str [OPTIONS]                                                                                                                         
+Usage: transai random str [OPTIONS]                                                                                                                       
                                                                                                                                                            
  Generate a random string.                                                                                                                                 
                                                                                                                                                            
