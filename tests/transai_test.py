@@ -76,7 +76,25 @@ def test_version_flag_raises_exit() -> None:
   """Test version flag raises typer.Exit with exit code 0."""
   ctx = mock.Mock(spec=click.Context)
   with pytest.raises(typer.Exit) as exc_info:
-    transai.Main(ctx=ctx, version=True, verbose=0, color=None)
+    transai.Main(
+      ctx=ctx,
+      version=True,
+      verbose=0,
+      color=None,
+      models_root=None,
+      lms=True,
+      model='test-model',
+      spec_tokens=None,
+      seed=None,
+      context=1024,
+      temperature=0.1,
+      gpu=0.8,
+      gpu_layers=-1,
+      fp16=False,
+      use_mmap=True,
+      flash=True,
+      kv_cache=None,
+    )
   assert exc_info.value.exit_code == 0
 
 

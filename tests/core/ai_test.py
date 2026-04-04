@@ -48,8 +48,7 @@ def MakeConfig(**overrides: object) -> ai.AIModelConfig:
     'fp16': False,
     'flash': False,
     'spec_tokens': None,
-    'k_cache': None,
-    'v_cache': None,
+    'kv_cache': None,
   }
   base.update(overrides)  # type: ignore[typeddict-item]
   return base

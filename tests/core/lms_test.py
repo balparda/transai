@@ -285,11 +285,11 @@ def testLMSWorkerLoadRaisesOnReasoning() -> None:
 
 
 def testLMSWorkerLoadWarnsOnIgnoredFields() -> None:
-  """_Load emits warnings for model_path, k_cache, flash, gpu_layers, spec_tokens."""
+  """_Load emits warnings for model_path, kv_cache, flash, gpu_layers, spec_tokens."""
   worker, client_mock = _MakeLMSWorker()
   config: ai.AIModelConfig = ai_test.MakeConfig(
     model_path=pathlib.Path('/some/path.gguf'),
-    k_cache=8,
+    kv_cache=8,
     flash=True,
     gpu_layers=10,
     spec_tokens=3,
@@ -304,7 +304,7 @@ def testLMSWorkerLoadWarnsOnIgnoredFields() -> None:
     mock.patch('transai.core.lms.logging') as log_mock,
   ):
     worker._Load(config)
-  # model_path + k_cache + (flash | gpu_layers | spec_tokens) = at least 3 warnings
+  # model_path + kv_cache + (flash | gpu_layers | spec_tokens) = at least 3 warnings
   assert log_mock.warning.call_count >= 3
 
 
