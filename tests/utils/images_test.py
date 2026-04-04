@@ -15,7 +15,7 @@ from collections.abc import Iterator
 from unittest import mock
 
 import pytest
-from PIL import Image, ImageSequence
+from PIL import Image, ImageFile, ImageSequence
 
 from transai.core import ai
 from transai.utils import images
@@ -28,7 +28,7 @@ _TEST_IMAGES_PATH: pathlib.Path = pathlib.Path(__file__).parent.parent / 'data' 
 # ---------------------------------------------------------------------------
 
 
-def _ReadTestImage(name: str) -> bytes:
+def _ReadTestImage(name: str, /) -> bytes:
   """Read a binary test image by filename from the shared test-images directory.
 
   Args:
@@ -41,7 +41,7 @@ def _ReadTestImage(name: str) -> bytes:
   return (_TEST_IMAGES_PATH / name).read_bytes()
 
 
-def _MakeAnimatedGif(n_frames: int, *, width: int = 20, height: int = 20) -> bytes:
+def _MakeAnimatedGif(n_frames: int, /, *, width: int = 20, height: int = 20) -> bytes:
   """Create a minimal in-memory animated GIF with ``n_frames`` distinct frames.
 
   Each frame has a different shade of red so that Pillow records them as
@@ -61,14 +61,16 @@ def _MakeAnimatedGif(n_frames: int, *, width: int = 20, height: int = 20) -> byt
   """
   if n_frames < 2:
     raise ValueError(f'n_frames must be >= 2, got {n_frames}')
-  step = 255 // (n_frames - 1) if n_frames > 1 else 255
-  frames = [Image.new('RGB', (width, height), color=(i * step, 0, 0)) for i in range(n_frames)]
+  step: int = 255 // (n_frames - 1) if n_frames > 1 else 255
+  frames: list[Image.Image] = [
+    Image.new('RGB', (width, height), color=(i * step, 0, 0)) for i in range(n_frames)
+  ]
   buf = io.BytesIO()
   frames[0].save(buf, format='GIF', save_all=True, append_images=frames[1:], loop=0, duration=100)
   return buf.getvalue()
 
 
-def _PngSize(png_bytes: bytes) -> tuple[int, int]:
+def _PngSize(png_bytes: bytes, /) -> tuple[int, int]:
   """Return (width, height) of a PNG from its raw bytes.
 
   Args:
@@ -91,7 +93,7 @@ def test_resize_image_for_vision_small_image_not_resized() -> None:
 
   Also verifies the output is PNG-encoded.
   """
-  result = images.ResizeImageForVision(_ReadTestImage('100.jpg'), max_pixels=512)
+  result: bytes = images.ResizeImageForVision(_ReadTestImage('100.jpg'), max_pixels=512)
   w, h = _PngSize(result)
   assert (w, h) == (200, 246)
   # PNG header magic bytes
@@ -100,14 +102,14 @@ def test_resize_image_for_vision_small_image_not_resized() -> None:
 
 def test_resize_image_for_vision_tall_image_exact_bytes() -> None:
   """100.jpg (200x246) resized to max_pixels=128 must match the precomputed reference exactly."""
-  result = images.ResizeImageForVision(_ReadTestImage('100.jpg'), max_pixels=128)
-  reference = _ReadTestImage('100-reduced-128.png')
+  result: bytes = images.ResizeImageForVision(_ReadTestImage('100.jpg'), max_pixels=128)
+  reference: bytes = _ReadTestImage('100-reduced-128.png')
   assert result == reference
 
 
 def test_resize_image_for_vision_tall_image_dimension_check() -> None:
   """100.jpg (200x246): after resize to max_pixels=128, height ≤ 128 and is the dominant edge."""
-  result = images.ResizeImageForVision(_ReadTestImage('100.jpg'), max_pixels=128)
+  result: bytes = images.ResizeImageForVision(_ReadTestImage('100.jpg'), max_pixels=128)
   w, h = _PngSize(result)
   assert h == 128  # tall side becomes exactly max_pixels
   assert w < 128  # narrow side is proportionally smaller
@@ -115,7 +117,7 @@ def test_resize_image_for_vision_tall_image_dimension_check() -> None:
 
 def test_resize_image_for_vision_wide_image_width_dominant() -> None:
   """106.jpg (300x222) with max_pixels=200: width is dominant, should be scaled to 200."""
-  result = images.ResizeImageForVision(_ReadTestImage('106.jpg'), max_pixels=200)
+  result: bytes = images.ResizeImageForVision(_ReadTestImage('106.jpg'), max_pixels=200)
   w, h = _PngSize(result)
   assert w == 200  # wide side becomes exactly max_pixels
   assert h < 200  # narrow side is proportionally smaller
@@ -124,8 +126,8 @@ def test_resize_image_for_vision_wide_image_width_dominant() -> None:
 
 def test_resize_image_for_vision_rgba_converted_to_rgb() -> None:
   """107.png is RGBA (170x225); the output must be an RGB PNG regardless of input mode."""
-  result = images.ResizeImageForVision(_ReadTestImage('107.png'), max_pixels=512)
-  out = Image.open(io.BytesIO(result))
+  result: bytes = images.ResizeImageForVision(_ReadTestImage('107.png'), max_pixels=512)
+  out: ImageFile.ImageFile = Image.open(io.BytesIO(result))
   assert out.format == 'PNG'
   assert out.mode == 'RGB'
   assert out.size == (170, 225)  # smaller than 512 → no resize
@@ -134,22 +136,22 @@ def test_resize_image_for_vision_rgba_converted_to_rgb() -> None:
 def test_resize_image_for_vision_default_max_pixels_leaves_small_images_unchanged() -> None:
   """All test images are smaller than the default 1024-px limit: size must be unchanged."""
   for name in ('100.jpg', '101.jpg', '102.jpg', '103.jpg', '104.png'):
-    orig_size = Image.open(io.BytesIO(_ReadTestImage(name))).size
-    result = images.ResizeImageForVision(_ReadTestImage(name))
+    orig_size: tuple[int, int] = Image.open(io.BytesIO(_ReadTestImage(name))).size
+    result: bytes = images.ResizeImageForVision(_ReadTestImage(name))
     assert _PngSize(result) == orig_size, f'{name}: size changed unexpectedly'
 
 
 def test_resize_image_for_vision_duplicate_images_give_identical_results() -> None:
   """100.jpg and 105.jpg are the same binary: both must produce the same PNG output."""
-  result_100 = images.ResizeImageForVision(_ReadTestImage('100.jpg'), max_pixels=128)
-  result_105 = images.ResizeImageForVision(_ReadTestImage('105.jpg'), max_pixels=128)
+  result_100: bytes = images.ResizeImageForVision(_ReadTestImage('100.jpg'), max_pixels=128)
+  result_105: bytes = images.ResizeImageForVision(_ReadTestImage('105.jpg'), max_pixels=128)
   assert result_100 == result_105
 
 
 def test_resize_image_for_vision_all_formats_output_png() -> None:
   """JPEG and PNG inputs should all produce valid PNG output."""
   for name in ('100.jpg', '104.png', '107.png', '108.png'):
-    result = images.ResizeImageForVision(_ReadTestImage(name), max_pixels=512)
+    result: bytes = images.ResizeImageForVision(_ReadTestImage(name), max_pixels=512)
     assert result[:4] == b'\x89PNG', f'{name}: expected PNG magic bytes'
 
 
@@ -158,7 +160,7 @@ def test_resize_image_for_vision_small_max_pixels_produces_min_one_pixel() -> No
   # Create a synthetic 100x200 image in-memory
   buf = io.BytesIO()
   Image.new('RGB', (100, 200), color=(128, 64, 32)).save(buf, format='JPEG')
-  result = images.ResizeImageForVision(buf.getvalue(), max_pixels=1)
+  result: bytes = images.ResizeImageForVision(buf.getvalue(), max_pixels=1)
   w, h = _PngSize(result)
   assert w >= 1
   assert h >= 1
@@ -199,8 +201,8 @@ def test_animation_frames_real_gif_with_decimation_matches_reference_frames() ->
   This test exercises: the decimation-skip branch, frame resize, and the happy-path
   debug log (frame_count=118 > 1 at the end).
   """
-  gif_bytes = _ReadTestImage('109.gif')
-  reference = [_ReadTestImage(f'109-frame-{i:02d}.png') for i in range(11)]
+  gif_bytes: bytes = _ReadTestImage('109.gif')
+  reference: list[bytes] = [_ReadTestImage(f'109-frame-{i:02d}.png') for i in range(11)]
   produced: list[bytes] = list(images.AnimationFrames(gif_bytes, max_pixels=128, decimation=True))
   assert len(produced) == 11
   for i, (ref, prod) in enumerate(zip(reference, produced, strict=True)):
@@ -209,7 +211,7 @@ def test_animation_frames_real_gif_with_decimation_matches_reference_frames() ->
 
 def test_animation_frames_real_gif_without_decimation_yields_all_frames() -> None:
   """109.gif + decimation=False must yield all 119 frames, each a valid PNG."""
-  gif_bytes = _ReadTestImage('109.gif')
+  gif_bytes: bytes = _ReadTestImage('109.gif')
   produced: list[bytes] = list(images.AnimationFrames(gif_bytes, decimation=False))
   assert len(produced) == 119
   # Spot-check first and last frame are valid PNG
@@ -222,7 +224,7 @@ def test_animation_frames_two_frame_gif_raises_insufficient_frame_count() -> Non
 
   This exercises the `if frame_count <= 1:` True branch.
   """
-  gif_bytes = _MakeAnimatedGif(2)
+  gif_bytes: bytes = _MakeAnimatedGif(2)
   with pytest.raises(ai.Error, match='not animated, expected multiple frames'):
     list(images.AnimationFrames(gif_bytes, decimation=False))
 
@@ -232,8 +234,8 @@ def test_animation_frames_three_frame_gif_completes_successfully() -> None:
 
   This exercises the `if frame_count <= 1:` False branch and the final debug log.
   """
-  gif_bytes = _MakeAnimatedGif(3)
-  produced = list(images.AnimationFrames(gif_bytes, decimation=False))
+  gif_bytes: bytes = _MakeAnimatedGif(3)
+  produced: list[bytes] = list(images.AnimationFrames(gif_bytes, decimation=False))
   assert len(produced) == 3
   for i, frame_bytes in enumerate(produced):
     assert frame_bytes[:4] == b'\x89PNG', f'frame {i} is not a PNG'
@@ -244,8 +246,8 @@ def test_animation_frames_custom_gif_decimation_reduces_frame_count() -> None:
 
   This exercises the decimation `continue` branch (frame_count % decimate_factor != 0).
   """
-  gif_bytes = _MakeAnimatedGif(21)
-  produced = list(images.AnimationFrames(gif_bytes, decimation=True))
+  gif_bytes: bytes = _MakeAnimatedGif(21)
+  produced: list[bytes] = list(images.AnimationFrames(gif_bytes, decimation=True))
   assert len(produced) == 11
 
 
@@ -282,7 +284,7 @@ def test_animation_frames_inner_oserror_first_frame_raises() -> None:
 
   This exercises the inner `except OSError` with `if not frame_count:` True branch.
   """
-  gif_bytes = _MakeAnimatedGif(5)
+  gif_bytes: bytes = _MakeAnimatedGif(5)
   with (
     mock.patch(
       'transai.utils.images._ImageToScaledPNGBytes', side_effect=OSError('bad frame data')
@@ -299,7 +301,7 @@ def test_animation_frames_inner_oserror_later_frame_logged_and_skipped(
 
   This exercises the inner `except OSError` with `if not frame_count:` False branch.
   """
-  gif_bytes = _MakeAnimatedGif(5)
+  gif_bytes: bytes = _MakeAnimatedGif(5)
   call_count = 0
 
   def _side_effect(*_args: object, **_kwargs: object) -> bytes:
@@ -313,7 +315,7 @@ def test_animation_frames_inner_oserror_later_frame_logged_and_skipped(
     mock.patch('transai.utils.images._ImageToScaledPNGBytes', side_effect=_side_effect),
     caplog.at_level(logging.ERROR),
   ):
-    produced = list(images.AnimationFrames(gif_bytes, decimation=False))
+    produced: list[bytes] = list(images.AnimationFrames(gif_bytes, decimation=False))
 
   # 5 frames attempted, 1 failed → 4 yielded
   assert len(produced) == 4
@@ -331,7 +333,7 @@ def test_animation_frames_outer_oserror_after_frames_logged(
   """
   frame_img = Image.new('RGB', (5, 5), color=(100, 100, 100))
 
-  def _bad_iterator(_anim: object) -> Iterator[Image.Image]:
+  def _bad_iterator(_anim: object, /) -> Iterator[Image.Image]:
     yield frame_img  # frame_count=0
     yield frame_img  # frame_count=1
     yield frame_img  # frame_count=2
@@ -346,7 +348,7 @@ def test_animation_frames_outer_oserror_after_frames_logged(
     mock.patch.object(ImageSequence, 'Iterator', side_effect=_bad_iterator),
     caplog.at_level(logging.ERROR),
   ):
-    produced = list(images.AnimationFrames(b'fake', decimation=False))
+    produced: list[bytes] = list(images.AnimationFrames(b'fake', decimation=False))
 
   assert len(produced) == 3  # 3 frames yielded before the iterator failed
   assert any('Animation error' in r.message for r in caplog.records)
@@ -354,8 +356,8 @@ def test_animation_frames_outer_oserror_after_frames_logged(
 
 def test_animation_frames_max_pixels_parameter_controls_output_size() -> None:
   """Frames produced with a small max_pixels must fit within that pixel budget."""
-  gif_bytes = _ReadTestImage('109.gif')  # 500x100 frames, so resize is always required
-  produced = list(images.AnimationFrames(gif_bytes, max_pixels=64, decimation=True))
+  gif_bytes: bytes = _ReadTestImage('109.gif')  # 500x100 frames, so resize is always required
+  produced: list[bytes] = list(images.AnimationFrames(gif_bytes, max_pixels=64, decimation=True))
   assert produced  # at least one frame
   for i, frame_bytes in enumerate(produced):
     w, h = _PngSize(frame_bytes)
