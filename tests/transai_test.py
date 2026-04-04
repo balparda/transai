@@ -76,7 +76,7 @@ def test_version_flag_raises_exit() -> None:
   """Test version flag raises typer.Exit with exit code 0."""
   ctx = mock.Mock(spec=click.Context)
   with pytest.raises(typer.Exit) as exc_info:
-    transai.Main(ctx=ctx, version=True, verbose=0, color=None, foo=1000, bar='str default')
+    transai.Main(ctx=ctx, version=True, verbose=0, color=None)
   assert exc_info.value.exit_code == 0
 
 
@@ -103,4 +103,4 @@ def test_markdown_command_generates_docs() -> None:
   assert 'transai' in result.stdout
   assert '#' in result.stdout  # markdown headers
   assert '<!--' in result.stdout  # top comment
-  assert 'random' in result.stdout  # verify it includes subcommands
+  assert 'query' in result.stdout  # verify it includes subcommands
