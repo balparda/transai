@@ -48,4 +48,5 @@ def _hello_call(cli_paths: dict[str, pathlib.Path], data_dir: pathlib.Path, /) -
     assert '\x1b[' not in r.stdout  # no ANSI escape sequences
     assert '\x1b[' not in r.stderr
   finally:
-    shutil.rmtree(data_dir)  # remove created data to isolate the next CLI's read step
+    if data_dir.exists():
+      shutil.rmtree(data_dir)  # remove created data to isolate the next CLI's read step
