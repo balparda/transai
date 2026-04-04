@@ -8,6 +8,7 @@ Run with:
 
 from __future__ import annotations
 
+import pathlib
 from unittest import mock
 
 import llama_cpp
@@ -386,3 +387,26 @@ def testModelCallPassesImagesThrough() -> None:
   call_mock.assert_called_once()
   _, kwargs = call_mock.call_args
   assert kwargs.get('images') == images
+
+
+def testModelCallPassesMixedImageTypesThrough() -> None:
+  """ModelCall() must forward a mixed list of bytes, Path, and str images to _Call()."""
+  w = _ConcreteWorker()
+  w._call_return = 'mixed-result'
+  loaded: ai.LoadedModel = _MakeLlamaModel()
+  w._loaded_models['test-model'] = loaded
+  mixed_images: list[ai.AIImageInput] = [
+    b'\x89PNG\r\n\x1a\n',  # bytes
+    pathlib.Path('/some/image.png'),  # pathlib.Path
+    '/another/image.jpg',  # str path
+  ]
+  with mock.patch.object(w, '_Call', return_value='mixed-result') as call_mock:
+    result: str = w.ModelCall('test-model', 'sys', 'user', str, images=mixed_images)
+  assert result == 'mixed-result'
+  call_mock.assert_called_once()
+  _, kwargs = call_mock.call_args
+  forwarded = kwargs.get('images')
+  assert forwarded is mixed_images
+  assert isinstance(forwarded[0], bytes)
+  assert isinstance(forwarded[1], pathlib.Path)
+  assert isinstance(forwarded[2], str)
