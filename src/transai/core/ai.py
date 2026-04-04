@@ -14,10 +14,13 @@ import lmstudio
 import pydantic
 from transcrypto.utils import base, saferandom
 
+_LMSTUDIO_ROOT: pathlib.Path = pathlib.Path('~/.lmstudio/models/').expanduser().resolve()
+DEFAULT_MODELS_ROOT: pathlib.Path | None = _LMSTUDIO_ROOT if _LMSTUDIO_ROOT.is_dir() else None
+
 AI_CONTEXT_LENGTH = 32 * 1024  # 32k tokens, should be enough for the image and the tags
 AI_MAX_CONTEXT = 2**24  # 16 million tokens, just a sanity check upper bound for validation
 DEFAULT_VISION_MODEL = 'qwen3-vl-32b-instruct@Q8_0'
-DEFAULT_CONCILIUM_MODEL = 'qwen3-8b@Q8_0'
+DEFAULT_TEXT_MODEL = 'qwen3-8b@Q8_0'
 AI_MAX_SEED = 2**31 - 1
 DEFAULT_GPU_RATIO = 0.8
 DEFAULT_TEMPERATURE = 0.15
@@ -47,8 +50,7 @@ class AIModelConfig(TypedDict):
   fp16: bool  # is the model loaded in fp16 precision (for debugging / analysis)?
   flash: bool  # flash attention enabled (if supported)
   spec_tokens: int | None  # number of tokens used for speculative decoding (if applicable)
-  k_cache: int | None  # GGML type for KV-cache keys
-  v_cache: int | None  # GGML type for KV-cache values
+  kv_cache: int | None  # GGML type for KV-cache keys/values
 
 
 type AIModelMetadata = base.JSONDict  # metadata about the loaded model

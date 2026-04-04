@@ -1,6 +1,6 @@
 <!-- SPDX-FileCopyrightText: Copyright 2026 Daniel Balparda <balparda@github.com> -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# transai
+# TransAI
 
 AI library and helpers (Python/Poetry/Typer - LM Studio & llama.cpp).
 
@@ -15,7 +15,7 @@ AI library and helpers (Python/Poetry/Typer - LM Studio & llama.cpp).
 
 ## Table of contents
 
-- [transai](#transai)
+- [TransAI](#transai)
   - [Table of contents](#table-of-contents)
   - [License](#license)
     - [*Third-party notices (TODO)*](#third-party-notices-todo)

@@ -156,21 +156,22 @@ class LlamaWorker(ai.AIWorker):
       )
     # load model
     logging.info(f'Loading {gguf_path}')
-    llm: llama_cpp.Llama = llama_cpp.Llama(
-      model_path=str(gguf_path),
-      seed=config['seed'] or -1,
-      n_ctx=config['context'],
-      temperature=config['temperature'],
-      n_gpu_layers=config['gpu_layers'],
-      use_mmap=config['use_mmap'],
-      offload_kqv=True,
-      flash_attn=config['flash'],
-      type_k=config['k_cache'],
-      type_v=config['v_cache'],
-      chat_handler=handler,
-      draft_model=draft_model,
-      verbose=self._verbose,
-    )
+    with _SuppressNativeOutput(not self._verbose):
+      llm: llama_cpp.Llama = llama_cpp.Llama(
+        model_path=str(gguf_path),
+        seed=config['seed'] or -1,
+        n_ctx=config['context'],
+        temperature=config['temperature'],
+        n_gpu_layers=config['gpu_layers'],
+        use_mmap=config['use_mmap'],
+        offload_kqv=True,
+        flash_attn=config['flash'],
+        type_k=config['kv_cache'],  # for now both share the same type...
+        type_v=config['kv_cache'],
+        chat_handler=handler,
+        draft_model=draft_model,
+        verbose=self._verbose,
+      )
     # extract metadata from the loaded model
     metadata: ai.AIModelMetadata = dict(llm.metadata) if llm.metadata else {}
     md_text: str = _MetadataText(metadata)

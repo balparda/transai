@@ -20,8 +20,13 @@ class Error(ai.Error):
 class LMStudioWorker(ai.AIWorker):
   """AI worker implementation using LMStudio."""
 
-  def __init__(self) -> None:
+  def __init__(self, free_resources: bool = True) -> None:
     """Connect to LM Studio API server, do some checks, unload existing models.
+
+    Args:
+      free_resources: whether to unload all currently loaded LLMs to free VRAM/RAM before loading
+          any models; without this, loading a large model on top of others will likely exhaust
+          system resources, but setting this to False may be useful if you want to speed up
 
     Raises:
       Error: if no LM Studio API server instance is found on the default local ports, or
@@ -44,9 +49,10 @@ class LMStudioWorker(ai.AIWorker):
     self._client: lmstudio.Client = lmstudio.Client(api_host)
     # unload all currently loaded LLMs to free VRAM/RAM before loading our model;
     # without this, loading a large model on top of others will likely exhaust system resources
-    for loaded in self._client.llm.list_loaded():
-      logging.info(f'Unloading existing model {loaded.identifier!r} to free resources')
-      self._client.llm.unload(loaded.identifier)
+    if free_resources:
+      for loaded in self._client.llm.list_loaded():
+        logging.info(f'Unloading existing model {loaded.identifier!r} to free resources')
+        self._client.llm.unload(loaded.identifier)
 
   def Close(self) -> None:
     """Close any started sessions."""
@@ -76,8 +82,8 @@ class LMStudioWorker(ai.AIWorker):
     """
     if config['model_path'] is not None or config['clip_path'] is not None:
       logging.warning('AIModelConfig.model_path/clip_path are ignored by LMStudioWorker')
-    if config['k_cache'] is not None or config['v_cache'] is not None:
-      logging.warning('AIModelConfig.k_cache/v_cache are ignored by LMStudioWorker')
+    if config['kv_cache'] is not None:
+      logging.warning('AIModelConfig.kv_cache is ignored by LMStudioWorker')
     if config['flash'] or config['gpu_layers'] != -1 or config['spec_tokens'] is not None:
       logging.warning('AIModelConfig.flash/gpu_layers/spec_tokens are ignored by LMStudioWorker')
     if config['reasoning']:
