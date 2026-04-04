@@ -52,6 +52,7 @@ class AIModelConfig(TypedDict):
 
 
 type AIModelMetadata = base.JSONDict  # metadata about the loaded model
+type AIImageInput = bytes | pathlib.Path | str
 type _SupportedModelObject = llama_cpp.Llama | lmstudio.LLM  # supported backends actual model type
 type LoadedModel = tuple[AIModelConfig, AIModelMetadata, _SupportedModelObject]
 type _LoadedModelsDict = dict[str, LoadedModel]
@@ -188,7 +189,7 @@ class AIWorker(abc.ABC):
     output_format: type[T],
     /,
     *,
-    images: list[bytes | pathlib.Path] | None = None,
+    images: list[AIImageInput] | None = None,
   ) -> T:
     """Make a call to the model.
 
@@ -225,7 +226,7 @@ class AIWorker(abc.ABC):
     output_format: type[T],
     /,
     *,
-    images: list[bytes | pathlib.Path] | None = None,
+    images: list[AIImageInput] | None = None,
   ) -> T:
     """Make a call to the model.
 

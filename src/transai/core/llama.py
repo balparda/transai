@@ -76,11 +76,7 @@ class Error(ai.Error):
 
 
 class LlamaWorker(ai.AIWorker):
-  """AI worker implementation using llama.cpp (llama-cpp-python).
-
-  Loads local GGUF models, auto-detects vision capability from GGUF metadata,
-  and supports structured JSON-schema inference via Pydantic models.
-  """
+  """AI worker implementation using llama.cpp (llama-cpp-python)."""
 
   def __init__(self, models_root: pathlib.Path, /, *, verbose: bool = False) -> None:
     """Initialize the llama.cpp worker.
@@ -104,32 +100,23 @@ class LlamaWorker(ai.AIWorker):
     logging.info(f'LLAMA @ {self._models_root}')
 
   def _Load(self, config: ai.AIModelConfig, /) -> ai.LoadedModel:
-    """Load a local GGUF model from a directory tree.
-
-    Uses ``config.model_path`` as the root directory and searches
-    recursively for a sub-directory whose name matches
-    ``config['model_id']`` (case-insensitive).  Exactly one match is
-    required; zero or multiple matches raise :class:`Error`.
-
-    Inside the matched directory the loader picks the main ``.gguf``
-    file (excluding clip / mmproj files) and optionally auto-discovers
-    a vision clip model.
+    """Load the model with the given configuration.
 
     Args:
-      config: AIModelConfig with loading parameters; ``model_id`` and
-          ``model_path`` are required for this backend
+      config: AIModelConfig with loading parameters, `model_id` must be provided; the other fields
+          may be ignored or overridden by the caller; the loading implementation should fill
+          in any missing fields with the actual values used for loading
 
     Returns:
       (
         AIModelConfig: with the actual loading configuration used
             (including any inferred or overridden fields),
-        AIModelMetadata: metadata about the loaded model,
-        llama_cpp.Llama: the loaded llama.cpp model instance
+        ModelMetadata: metadata about the loaded model,
+        _SupportedModelObject: the loaded model instance (e.g. llama_cpp.Llama or lmstudio.LLM)
       )
 
     Raises:
-      Error: if loading fails for any reason
-          (e.g. invalid config, model not found, ambiguous match, etc.)
+      Error: if loading fails for any reason (e.g. invalid config, model not found, etc)
 
     """
     # resolve GGUF files we can find, prioritizing explicit paths in the config
@@ -210,36 +197,24 @@ class LlamaWorker(ai.AIWorker):
     output_format: type[T],
     /,
     *,
-    images: list[bytes | pathlib.Path] | None = None,
+    images: list[ai.AIImageInput] | None = None,
   ) -> T:
-    """Make a call to a previously loaded llama.cpp model.
-
-    For ``output_format=str`` a plain text completion is returned.
-    For a :class:`pydantic.BaseModel` subclass the response is
-    constrained to a JSON schema derived from the model class
-    (including ``Field.description`` annotations) and parsed back
-    into an instance of that class.
+    """Make a call to the model.
 
     Args:
-      model: the loaded model instance to call; must have been loaded with _Load()
-      system_prompt: the system prompt to provide context or
-          instructions to the model
-      user_prompt: the user prompt containing the actual query or
-          request for the model
-      output_format: ``str`` for raw text, or a
-          :class:`pydantic.BaseModel` subclass for structured output
-      images (default=None): optional list of images to send as
-          input, either as ``bytes`` or :class:`pathlib.Path`;
-          only supported if the model has vision capability
+      model: the loaded model instance to call; one of the models previously loaded with _Load()
+      system_prompt: the system prompt to provide context or instructions to the model
+      user_prompt: the user prompt containing the actual query or request for the model
+      output_format: optional pydantic model class or `str` to parse the output into;
+          if not given, the raw string output from the model will be returned
+      images (default=None): optional list of images to send as input, either as bytes or file
+          paths; only supported if the model has vision capability
 
     Returns:
-      the model output, either as a raw string or parsed into the
-      given *output_format* class
+      the model output, either as a raw string or parsed into the given `output_format` class
 
     Raises:
-      Error: if the *model_id* is not found, if the model does not
-          support the given inputs, or if there is any error calling
-          the model
+      Error: if the model does not support the given inputs, or if there is any error calling
 
     """
     model_config: ai.AIModelConfig = model[0]
@@ -257,7 +232,9 @@ class LlamaWorker(ai.AIWorker):
       for img in images:
         # down-scale large images to stay within the KV-cache budget
         img_bytes: bytes = ai_images.ResizeImageForVision(  # convert do 1024px max PNG single-frame
-          img.read_bytes() if isinstance(img, pathlib.Path) else img
+          pathlib.Path(img).expanduser().resolve().read_bytes()
+          if isinstance(img, (str, pathlib.Path))
+          else img
         )
         parts.append(
           {'type': 'image_url', 'image_url': {'url': _ImageToDataURI(img_bytes, 'image/png')}}

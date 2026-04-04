@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import logging
-import pathlib
 from typing import cast
 
 import lmstudio
@@ -68,7 +67,7 @@ class LMStudioWorker(ai.AIWorker):
         AIModelConfig: with the actual loading configuration used
             (including any inferred or overridden fields),
         ModelMetadata: metadata about the loaded model,
-        lmstudio.LLM: the loaded LMStudio LLM instance
+        _SupportedModelObject: the loaded model instance (e.g. llama_cpp.Llama or lmstudio.LLM)
       )
 
     Raises:
@@ -152,12 +151,12 @@ class LMStudioWorker(ai.AIWorker):
     output_format: type[T],
     /,
     *,
-    images: list[bytes | pathlib.Path] | None = None,
+    images: list[ai.AIImageInput] | None = None,
   ) -> T:
     """Make a call to the model.
 
     Args:
-      model: the loaded model instance to call; must have been loaded with _Load()
+      model: the loaded model instance to call; one of the models previously loaded with _Load()
       system_prompt: the system prompt to provide context or instructions to the model
       user_prompt: the user prompt containing the actual query or request for the model
       output_format: optional pydantic model class or `str` to parse the output into;
@@ -169,8 +168,7 @@ class LMStudioWorker(ai.AIWorker):
       the model output, either as a raw string or parsed into the given `output_format` class
 
     Raises:
-      Error: if the `model_id` is not found, if the model does not support the given inputs, or
-          if there is any error calling the model
+      Error: if the model does not support the given inputs, or if there is any error calling
 
     """
     model_config: ai.AIModelConfig = model[0]
