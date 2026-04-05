@@ -9,3 +9,5 @@ In particular:
 - ![107.png](107.png) and ![108.png](108.png) are the same image, re-scaled (`108.jpg` is the smaller one);
 - ![109.jpg](109.gif) is a long-ish animated GIF.
   - ![109-frame-00.png](109-frame-00.png) to ![109-frame-10.png](109-frame-10.png) are the correct 11 frames returned by `transai.utils.images.AnimationFrames(open('109.gif', 'rb').read(), max_pixels=128, decimation=True)`
+
+The test images are generated with `poetry run scripts/make_test_images.py`.

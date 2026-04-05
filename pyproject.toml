@@ -216,6 +216,16 @@ preview = true  # if you want new features being previewed
 
 [tool.ruff.lint.per-file-ignores]
 
+"scripts*/**/*.py" = [
+  "S101",     # Use of `assert` detected
+  "PT018",    # Assertion should be broken down into multiple parts
+  "SLF001",   # Private member accessed
+  "PLR2004",  # Magic value used in comparison, consider replacing <V> with a constant variable
+  "T201",     # `print` found
+  "T100",     # Import for `pdb` found
+  "ERA001",   # Found commented-out code
+]
+
 "tests*/**/*.py" = [
   "S101",     # Use of `assert` detected
   "PT018",    # Assertion should be broken down into multiple parts

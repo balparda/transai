@@ -27,6 +27,7 @@ _APP_NAMES: set[str] = {'transai'}  # this is the console scripts names
 
 
 @pytest.mark.integration
+@pytest.mark.slow
 def test_installed_cli_smoke(tmp_path: pathlib.Path) -> None:
   """Build wheel, install into a clean venv, run the installed CLIs."""
   repo_root: pathlib.Path = pathlib.Path(__file__).resolve().parents[1]

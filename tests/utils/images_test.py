@@ -209,6 +209,7 @@ def test_animation_frames_real_gif_with_decimation_matches_reference_frames() ->
     assert ref == prod, f'frame {i:02d} bytes do not match reference'
 
 
+@pytest.mark.slow
 def test_animation_frames_real_gif_without_decimation_yields_all_frames() -> None:
   """109.gif + decimation=False must yield all 119 frames, each a valid PNG."""
   gif_bytes: bytes = _ReadTestImage('109.gif')
@@ -294,6 +295,7 @@ def test_animation_frames_inner_oserror_first_frame_raises() -> None:
     list(images.AnimationFrames(gif_bytes, decimation=False))
 
 
+@pytest.mark.slow
 def test_animation_frames_inner_oserror_later_frame_logged_and_skipped(
   caplog: pytest.LogCaptureFixture,
 ) -> None:
