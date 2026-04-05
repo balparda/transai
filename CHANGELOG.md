@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 - [Changelog](#changelog)
   - [V.V.V - YYYY-MM-DD - Placeholder](#vvv---yyyy-mm-dd---placeholder)
-  - [1.0.0 - 2026-04-03](#100---2026-04-03)
+  - [1.0.0 - 2026-04-05](#100---2026-04-05)
 
 This project follows a pragmatic versioning approach:
 
@@ -25,21 +25,32 @@ This project follows a pragmatic versioning approach:
 - Fixed
   - Placeholder for future changes.
 
-## 1.0.0 - 2026-04-03
+## 1.0.0 - 2026-04-05
 
-Initial public release.
+Initial public release. Published to [pypi.org](https://pypi.org/project/transai/) on 2026-04-05. Features:
 
-- Added
-  - Basic `llama.cpp` and `LM Studio` support.
-    - Load with several options
-    - Call with options
-    - Images support
-    - JSON reply support
-  - Basic project files.
-  - Will publish to <pypi.org>
-
-- Changed
-  - N/A
-
-- Fixed
-  - N/A
+- Two AI backends with a unified abstract interface (`AIWorker`):
+  - **LM Studio** backend (`LMStudioWorker`): connects to a local LM Studio server via the `lmstudio` client library. Auto-discovers the local API host and validates loopback-only connections.
+  - **llama.cpp** backend (`LlamaWorker`): loads GGUF model files directly via `llama-cpp-python`. Auto-discovers model directories, GGUF files, and CLIP projectors.
+- Model loading with extensive configuration options:
+  - GPU offload ratio (`--gpu`) and layer count (`--gpu-layers`)
+  - Context length (`--context`, default 32k tokens)
+  - Sampling temperature (`--temperature`)
+  - Reproducible results via seed (`--seed`)
+  - Speculative decoding (`--tokens`)
+  - FP16 precision, flash attention, memory-mapped loading, and KV-cache type
+- Model calling with two output formats:
+  - Plain text (`str`) responses
+  - Structured JSON output via Pydantic model classes (uses JSON Schema for llama.cpp, `response_format` for LM Studio)
+- Vision model support:
+  - Automatic CLIP projector detection for llama.cpp (Qwen2-VL, MiniCPM, Llama3-Vision, Moondream, NanoLLava, Obsidian, Llava)
+  - Image preprocessing: automatic resize to 1024px max dimension
+  - Animated image support: frame extraction with decimation to ~10 frames
+  - Multiple image input types: `bytes`, `pathlib.Path`, or `str` (file path)
+- Capability detection: automatic identification of vision, tooling, and reasoning capabilities from model metadata
+- `transai query` CLI command for quick interactive queries
+- `transai markdown` CLI command for auto-generating CLI documentation
+- Global CLI flags: `--version`, `--verbose`, `--color`/`--no-color`, `--lms`/`--no-lms`, `--model`, `--root`
+- Full type annotation coverage (MyPy strict + Pyright strict + typeguard)
+- Unit tests and integration tests (wheel build + install + smoke tests)
+- CI pipeline with linting, type checking, coverage, and integration tests

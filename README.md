@@ -4,85 +4,55 @@
 
 AI library and helpers (Python/Poetry/Typer - LM Studio & llama.cpp).
 
-- **Primary use case:** *python API/interface with local AI models*
-- **Works with:** *local AI models*
-- **Status:** *stable*
-- **License:** *Apache-2.0*
+- **Primary use case:** Python API/interface with local AI models
+- **Works with:** local AI models via [LM Studio](https://lmstudio.ai/) or [llama.cpp](https://github.com/ggerganov/llama.cpp)
+- **Status:** stable
+- **License:** Apache-2.0
 
-***TODO:*** *throughout this documentation* ***ITALICS*** *mark* ***placeholder content*** *that a new project would typically want to edit with its own information.*
-
-*Since version 1.0.0 it is PyPI package: <https://pypi.org/project/transai/>*
+Since version 1.0.0 it is a PyPI package: <https://pypi.org/project/transai/>
 
 ## Table of contents
 
 - [TransAI](#transai)
   - [Table of contents](#table-of-contents)
   - [License](#license)
-    - [*Third-party notices (TODO)*](#third-party-notices-todo)
-    - [*Contributions and inbound licensing (TODO)*](#contributions-and-inbound-licensing-todo)
-  - [*Installation (TODO)*](#installation-todo)
-    - [*Supported platforms (TODO)*](#supported-platforms-todo)
+    - [Third-party notices](#third-party-notices)
+  - [Installation](#installation)
+    - [Supported platforms](#supported-platforms)
     - [Known dependencies (Prerequisites)](#known-dependencies-prerequisites)
-  - [*Context / Problem Space (TODO)*](#context--problem-space-todo)
-    - [*What this tool is (TODO)*](#what-this-tool-is-todo)
-    - [*What this tool is not (TODO)*](#what-this-tool-is-not-todo)
-    - [*Key concepts and terminology* (TODO)](#key-concepts-and-terminology-todo)
-    - [*Inputs and outputs (TODO)*](#inputs-and-outputs-todo)
-      - [*Inputs (TODO)*](#inputs-todo)
-      - [*Outputs (TODO)*](#outputs-todo)
-  - [*Design assumptions / Disclaimers (TODO)*](#design-assumptions--disclaimers-todo)
-    - [*Guarantees and stability (TODO)*](#guarantees-and-stability-todo)
-    - [*Assumptions (TODO)*](#assumptions-todo)
-    - [*Known limitations (TODO)*](#known-limitations-todo)
-    - [*Deprecation policy (TODO)*](#deprecation-policy-todo)
-    - [*Privacy / telemetry (TODO)*](#privacy--telemetry-todo)
-  - [*CLI Interface (TODO)*](#cli-interface-todo)
-    - [*Quick start (TODO)*](#quick-start-todo)
-    - [*Common workflows (TODO)*](#common-workflows-todo)
-      - [*Workflow 1 (TODO)*](#workflow-1-todo)
-      - [*Workflow 2 (TODO)*](#workflow-2-todo)
-    - [*Command structure (TODO)*](#command-structure-todo)
+  - [What TransAI is](#what-transai-is)
+    - [What TransAI is not](#what-transai-is-not)
+    - [Key concepts and terminology](#key-concepts-and-terminology)
+    - [Known limitations](#known-limitations)
+  - [Library API usage](#library-api-usage)
+    - [Loading a model](#loading-a-model)
+    - [Querying a model (text)](#querying-a-model-text)
+    - [Querying a model (structured JSON)](#querying-a-model-structured-json)
+    - [Vision models (images)](#vision-models-images)
+    - [Image utilities](#image-utilities)
+  - [CLI Interface](#cli-interface)
+    - [Quick start](#quick-start)
     - [Global flags](#global-flags)
     - [CLI Commands Documentation](#cli-commands-documentation)
-    - [*Configuration (TODO)*](#configuration-todo)
-      - [Config file locations](#config-file-locations)
-      - [*Configuration schema (TODO)*](#configuration-schema-todo)
-      - [*Validate configuration (TODO)*](#validate-configuration-todo)
-      - [*Environment variables (TODO)*](#environment-variables-todo)
-    - [*Input / output behavior (TODO)*](#input--output-behavior-todo)
-      - [*`stdin` and piping (TODO)*](#stdin-and-piping-todo)
-      - [*Output formats (TODO)*](#output-formats-todo)
-      - [Color and formatting](#color-and-formatting)
-      - [*Exit codes (TODO)*](#exit-codes-todo)
-    - [*Logging and observability (TODO)*](#logging-and-observability-todo)
-    - [*Safety features (TODO)*](#safety-features-todo)
-  - [*Project Design (TODO)*](#project-design-todo)
-    - [*Architecture overview (TODO)*](#architecture-overview-todo)
-    - [*Modules / packages (TODO)*](#modules--packages-todo)
-    - [*Data flow (TODO)*](#data-flow-todo)
-    - [*Error handling philosophy (TODO)*](#error-handling-philosophy-todo)
-    - [*Security model (TODO)*](#security-model-todo)
-    - [*Performance characteristics (TODO)*](#performance-characteristics-todo)
+    - [Color and formatting](#color-and-formatting)
+  - [Project Design](#project-design)
+    - [Architecture overview](#architecture-overview)
+    - [Modules](#modules)
   - [Development Instructions](#development-instructions)
     - [File structure](#file-structure)
     - [Development Setup](#development-setup)
-      - [*Requirements (TODO)*](#requirements-todo)
       - [Install Python](#install-python)
       - [Install Poetry (recommended: `pipx`)](#install-poetry-recommended-pipx)
       - [Make sure `.venv` is local](#make-sure-venv-is-local)
       - [Get the repository](#get-the-repository)
       - [Create environment and install dependencies](#create-environment-and-install-dependencies)
       - [Optional: VSCode setup](#optional-vscode-setup)
-    - [*Build (TODO)*](#build-todo)
-    - [*Run locally (TODO)*](#run-locally-todo)
     - [Testing](#testing)
       - [Unit tests / Coverage](#unit-tests--coverage)
       - [Instrumenting your code](#instrumenting-your-code)
       - [Integration / e2e tests](#integration--e2e-tests)
-      - [*Golden tests for CLI output (TODO)*](#golden-tests-for-cli-output-todo)
     - [Linting / formatting / static analysis](#linting--formatting--static-analysis)
       - [Type checking](#type-checking)
-    - [*Documentation updates (TODO)*](#documentation-updates-todo)
     - [Versioning and releases](#versioning-and-releases)
       - [Versioning scheme](#versioning-scheme)
       - [Updating versions](#updating-versions)
@@ -92,173 +62,241 @@ AI library and helpers (Python/Poetry/Typer - LM Studio & llama.cpp).
         - [CI and docs](#ci-and-docs)
         - [Git tag and commit](#git-tag-and-commit)
         - [Publish to PyPI](#publish-to-pypi)
-    - [*Contributing (TODO)*](#contributing-todo)
   - [Security](#security)
-    - [*Supply chain (TODO)*](#supply-chain-todo)
-  - [*Reliability (TODO)*](#reliability-todo)
-    - [*Operational guidance (TODO)*](#operational-guidance-todo)
-    - [*Running in automation (TODO)*](#running-in-automation-todo)
-    - [*Failure modes (TODO)*](#failure-modes-todo)
-  - [*Troubleshooting (TODO)*](#troubleshooting-todo)
-    - [*Enable debug output (TODO)*](#enable-debug-output-todo)
-    - [*Common issues (TODO)*](#common-issues-todo)
-    - [*Collect diagnostics (TODO)*](#collect-diagnostics-todo)
-  - [*FAQ (TODO)*](#faq-todo)
-    - [*FAQ Section I (TODO)*](#faq-section-i-todo)
-      - [*Why does `<project>` need `<permission/dependency>`? (TODO)*](#why-does-project-need-permissiondependency-todo)
-      - [*How do I migrate from version X to Y? (TODO)*](#how-do-i-migrate-from-version-x-to-y-todo)
-      - [*How stable is the JSON output? (TODO)*](#how-stable-is-the-json-output-todo)
-  - [*Glossary (TODO)*](#glossary-todo)
 
 ## License
 
 Copyright 2025 Daniel Balparda <balparda@github.com>
 
-Licensed under the ***Apache License, Version 2.0*** (the "License"); you may not use this file except in compliance with the License. You may obtain a [copy of the License here](http://www.apache.org/licenses/LICENSE-2.0).
+Licensed under the **Apache License, Version 2.0** (the "License"); you may not use this file except in compliance with the License. You may obtain a [copy of the License here](http://www.apache.org/licenses/LICENSE-2.0).
 
 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 
-### *Third-party notices (TODO)*
+### Third-party notices
 
-*This project includes or depends on third-party software. See:*
+This project depends on third-party software. Key runtime dependencies:
 
-- *NOTICE \<link\> (if applicable)*
-- *Dependency license list: \<link or section\>*
+- [transcrypto](https://github.com/balparda/transcrypto) (Apache-2.0) — CLI modules, logging, utilities
+- [llama-cpp-python](https://github.com/abetlen/llama-cpp-python) (MIT) — llama.cpp Python bindings
+- [lmstudio](https://pypi.org/project/lmstudio/) — LM Studio client library
+- [Pillow](https://github.com/python-pillow/Pillow) (MIT-CMU) — image processing
+- [pydantic](https://github.com/pydantic/pydantic) (MIT) — data validation and JSON schema
 
-### *Contributions and inbound licensing (TODO)*
+See `pyproject.toml` for the full dependency list.
 
-- *Contributions are accepted under: \<same as project license | CLA | DCO\>*
-- *Policy: \<link to CONTRIBUTING.md\>*
+## Installation
 
-## *Installation (TODO)*
-
-*To use in your project just do:*
+To use in your project:
 
 ```sh
-pip3 install <your_pkg>
+pip3 install transai
 ```
 
-*and then `from <your_pkg> import <your_library>` (or other parts of the library) for using it.*
+and then import the library:
 
-### *Supported platforms (TODO)*
+```python
+from transai.core import ai, lms, llama
+from transai.utils import images
+```
 
-- *OS: \<Linux | macOS | Windows\>*
-- *Architectures: \<x86_64 | arm64\>*
-- *Minimum versions: \<e.g., macOS 12+, Ubuntu 20.04+, Windows 11\>*
+For the CLI tool, after installation just run:
+
+```sh
+transai --help
+```
+
+### Supported platforms
+
+- OS: Linux, macOS, Windows (wherever `llama-cpp-python` and `lmstudio` are supported)
+- Architectures: x86_64, arm64
+- Python: 3.12+
 
 ### Known dependencies (Prerequisites)
 
-- **[python 3.12](https://python.org/)** - [documentation](https://docs.python.org/3.12/)
-- **[rich 14.2+](https://pypi.org/project/rich/)** - Render rich text, tables, progress bars, syntax highlighting, markdown and more to the terminal - [documentation](https://rich.readthedocs.io/en/latest/)
-- **[typer 0.21+](https://pypi.org/project/typer/)** - CLI parser - [documentation](https://typer.tiangolo.com/)
-- **[transcrypto 2.1+](https://pypi.org/project/transcrypto/)** - CLI modules, logging, humanization, crypto, random, hash, serialization, config management, etc. - [documentation](https://github.com/balparda/transcrypto)
-- **[llama-cpp-python](https://pypi.org/project/llama-cpp-python/)** - Llama AI python bindings
-- **[lmstudio](https://pypi.org/project/lmstudio/)** - LM Studio API
-- **[Pillow](https://pypi.org/project/pillow/)** - Python images
+- **[python 3.12+](https://python.org/)** — [documentation](https://docs.python.org/3.12/)
+- **[transcrypto 2.5+](https://pypi.org/project/transcrypto/)** — CLI modules, logging, humanization, config management, etc. — [documentation](https://github.com/balparda/transcrypto)
+- **[Pillow 12.2+](https://pypi.org/project/pillow/)** — image processing and format conversion
+- **[pydantic 2.12+](https://pypi.org/project/pydantic/)** — data validation and JSON schema generation
+- **[llama-cpp-python 0.3.20+](https://pypi.org/project/llama-cpp-python/)** — llama.cpp Python bindings for local GGUF model inference
+- **[lmstudio 1.5+](https://pypi.org/project/lmstudio/)** — LM Studio client library for the LM Studio API
+- **[rich](https://pypi.org/project/rich/)** — terminal output formatting (via transcrypto)
+- **[typer](https://pypi.org/project/typer/)** — CLI framework (via transcrypto)
 
-## *Context / Problem Space (TODO)*
+## What TransAI is
 
-### *What this tool is (TODO)*
+TransAI is a Python library and CLI tool that provides a unified interface for running local AI models through two backends:
 
-*\<Describe the CLI in one paragraph. Emphasize outcomes and workflows.\>*
+- **LM Studio** (`LMStudioWorker`): connects to a running LM Studio server on localhost via the `lmstudio` client library. This is the recommended and default backend.
+- **llama.cpp** (`LlamaWorker`): loads GGUF model files directly into memory using `llama-cpp-python`. Useful when you want full control without running an LM Studio server.
 
-### *What this tool is not (TODO)*
+Both backends share the same abstract interface (`AIWorker`), so you can swap backends without changing your application code. Models can be queried with plain text prompts or with structured output (Pydantic models), and vision models can process images.
 
-- *Not intended for:*
-- *Not a replacement for:*
+### What TransAI is not
 
-### *Key concepts and terminology* (TODO)
+- Not a cloud AI service — it only works with local models
+- Not a model downloader — you must have models available locally (via LM Studio or as GGUF files)
+- Not a training framework — inference only
+- Not a high-level agent framework — it provides the low-level model interface layer
 
-- *A*
-- *B*
+### Key concepts and terminology
 
-### *Inputs and outputs (TODO)*
+- **AIWorker**: abstract base class defining the interface for loading and querying AI models
+- **LMStudioWorker**: concrete worker that connects to a local LM Studio server
+- **LlamaWorker**: concrete worker that loads GGUF files directly via llama.cpp
+- **AIModelConfig**: TypedDict with all model loading parameters (context, temperature, GPU, seed, etc.)
+- **Model ID**: a string identifying the model, typically in the format `model-name@quantization` (e.g., `qwen3-8b@Q8_0`); should match what you would use with `lms get <model_id>` or `https://huggingface.co/<model_id>`
+- **GGUF**: the quantized model file format used by llama.cpp
+- **CLIP projector**: a companion model file enabling vision capabilities in multi-modal models
+- **Speculative decoding**: a technique for faster inference by generating multiple tokens in parallel
 
-#### *Inputs (TODO)*
+### Known limitations
 
-- *stdin: \<supported | not supported\>*
-- *Files: \<paths, globs, formats\>*
-- *Network/API: \<endpoints, services\>*
-- *Environment variables/config:*
+- LM Studio backend requires a running LM Studio server on localhost (127.0.0.1)
+- llama.cpp backend requires GGUF model files on disk
+- Vision support in llama.cpp depends on CLIP projector file availability and supported architectures (Qwen2-VL, MiniCPM, Llama3-Vision, Moondream, NanoLLava, Obsidian, Llava)
+- No telemetry, no network calls beyond localhost (LM Studio server)
 
-#### *Outputs (TODO)*
+## Library API usage
 
-- *stdout: \<human output / structured output\>*
-- *stderr: \<errors/logging\>*
-- *Files/artifacts:*
+### Loading a model
 
-## *Design assumptions / Disclaimers (TODO)*
+```python
+from transai.core import ai, lms, llama
 
-### *Guarantees and stability (TODO)*
+# --- Using LM Studio (recommended) ---
+with lms.LMStudioWorker() as worker:
+  config, metadata = worker.LoadModel(ai.AIModelConfig(
+    model_id='qwen3-8b@Q8_0',
+    version='1.0.0',
+    model_path=None,
+    clip_path=None,
+    seed=None,
+    context=32768,
+    temperature=0.15,
+    gpu_ratio=0.8,
+    gpu_layers=-1,
+    use_mmap=True,
+    vision=False,
+    tooling=False,
+    reasoning=False,
+    fp16=False,
+    flash=True,
+    spec_tokens=None,
+    kv_cache=None,
+  ))
+  # ... use worker.ModelCall() ...
 
-- *CLI flags/commands stability: \<stable | may change\>*
-- *JSON output stability: \<stable schema | best-effort\>*
-- *Backward compatibility:*
-
-### *Assumptions (TODO)*
-
-- *Environment: \<filesystem, permissions, network access\>*
-- *Locale/encoding: \<UTF-8 expected?\>*
-- *Time/timezone:*
-
-### *Known limitations (TODO)*
-
-- *Scale limits: \<e.g., tested up to 10k files\>*
-- *Platform limitations: \<e.g., Windows path edge cases\>*
-- *Edge cases: \<symlinks, long paths, etc.\>*
-
-### *Deprecation policy (TODO)*
-
-- *Deprecations are announced via:*
-- *Timeline: \<e.g., 2 minor versions\>*
-- *Migration guidance:*
-
-### *Privacy / telemetry (TODO)*
-
-- *Telemetry: \<none | optional | on by default\>*
-- *What is collected:*
-- *How to disable: \<env var | config flag\>*
-
-## *CLI Interface (TODO)*
-
-### *Quick start (TODO)*
-
-*Minimal example.*
-
-```sh
-<project> <command> <arg>
+# --- Using llama.cpp ---
+import pathlib
+with llama.LlamaWorker(pathlib.Path('~/.lmstudio/models/')) as worker:
+  config, metadata = worker.LoadModel(ai.AIModelConfig(
+    model_id='qwen3-8b@Q8_0',
+    # ... same config fields ...
+  ))
+  # ... use worker.ModelCall() ...
 ```
 
-### *Common workflows (TODO)*
+### Querying a model (text)
 
-#### *Workflow 1 (TODO)*
-
-```sh
-<project> <cmd> --flag value <input>
+```python
+response: str = worker.ModelCall(
+  model_id='qwen3-8b@Q8_0',
+  system_prompt='You are a helpful assistant.',
+  user_prompt='What is the capital of France?',
+  output_format=str,
+)
+print(response)  # "The capital of France is Paris."
 ```
 
-#### *Workflow 2 (TODO)*
+### Querying a model (structured JSON)
 
-```sh
-<project> <cmd> <input> --output <file>
+```python
+import pydantic
+
+class CityInfo(pydantic.BaseModel):
+  city: str
+  country: str
+  population: int
+
+result: CityInfo = worker.ModelCall(
+  model_id='qwen3-8b@Q8_0',
+  system_prompt='Extract city information.',
+  user_prompt='Tell me about Paris, France.',
+  output_format=CityInfo,
+)
+print(result.city)        # "Paris"
+print(result.population)  # 2161000
 ```
 
-### *Command structure (TODO)*
+### Vision models (images)
 
-General shape:
+```python
+import pathlib
+
+response: str = worker.ModelCall(
+  model_id='qwen3-vl-32b-instruct@Q8_0',
+  system_prompt='Describe what you see.',
+  user_prompt='What is in this image?',
+  output_format=str,
+  images=[pathlib.Path('photo.jpg')],  # or raw bytes, or file path string
+)
+```
+
+Images are automatically resized to fit within 1024px (longest edge) before being sent to the model.
+
+### Image utilities
+
+The `transai.utils.images` module provides helpers for image preprocessing:
+
+```python
+from transai.utils import images
+
+# Resize an image for vision models (max 1024px, returns PNG bytes)
+png_bytes: bytes = images.ResizeImageForVision(raw_image_bytes)
+
+# Extract frames from an animated image (GIF, APNG, etc.)
+for frame_png in images.AnimationFrames(animated_gif_bytes):
+  # each frame is PNG bytes, resized to max 336px
+  pass
+```
+
+## CLI Interface
+
+### Quick start
+
+Query a local AI model via LM Studio (server must be running):
 
 ```sh
-<project> [global flags] <command> [command flags] [args]
+transai query "What is the capital of France?"
+```
+
+Query using the llama.cpp backend (direct GGUF loading, no server needed):
+
+```sh
+transai --no-lms --root ~/.lmstudio/models/ query "Give me an onion soup recipe."
 ```
 
 ### Global flags
 
 | Flag | Description | Default |
 | --- | --- | --- |
-| `-h`, `--help` | Show help | \<off\> |
-| `--version` | Show version and exit | \<off\> |
+| `--help` | Show help | off |
+| `--version` | Show version and exit | off |
 | `-v`, `-vv`, `-vvv`, `--verbose` | Verbosity (nothing=*ERROR*, `-v`=*WARNING*, `-vv`=*INFO*, `-vvv`=*DEBUG*) | *ERROR* |
-| `--color`/`--no-color` | Force enable/disable colored output (respects NO_COLOR env var if not provided) | `--color` |
+| `--color`/`--no-color` | Force enable/disable colored output (respects `NO_COLOR` env var if not provided) | `--color` |
+| `-r`, `--root` | Local models root directory (only needed for `--no-lms`) | LM Studio default if it exists |
+| `--lms`/`--no-lms` | Use LM Studio backend vs llama.cpp backend | `--lms` |
+| `-m`, `--model` | Model to load (e.g., `qwen3-8b@Q8_0`) | `qwen3-8b@Q8_0` |
+| `-t`, `--tokens` | Speculative decoding tokens (2-200) | disabled |
+| `-s`, `--seed` | Random seed for reproducibility | random |
+| `--context` | Max context tokens (16-16777216) | 32768 |
+| `-x`, `--temperature` | Sampling temperature (0.0-2.0) | 0.15 |
+| `-g`, `--gpu` | GPU ratio (0.1-1.0) | 0.80 |
+| `--gpu-layers` | GPU layers to offload (-1 = as many as possible) | -1 |
+| `--fp16`/`--no-fp16` | FP16 precision mode | `--no-fp16` |
+| `--mmap`/`--no-mmap` | Memory-mapped file loading | `--mmap` |
+| `--flash`/`--no-flash` | Flash attention | `--flash` |
+| `--kv-cache` | KV-cache precision type (GGML type, 4-128) | model default |
 
 ### CLI Commands Documentation
 
@@ -266,157 +304,49 @@ This software auto-generates docs for CLI apps:
 
 - [**`transai`** documentation](transai.md)
 
-### *Configuration (TODO)*
+### Color and formatting
 
-#### Config file locations
-
-This template uses `transcrypto.util.config` for configuration management. Config files are stored in OS-native locations:
-
-- On MacOS: `/Users/[user]/Library/Application Support/[app_name]{/[version]}`
-- On Windows: `C:\\Users\\[user]\\AppData\\Local{\\[app_author]}\\[app_name]{\\[version]}`
-- On Linux: `/home/[user]/.config/[app_name]{/[version]}`
-- On Android: `/data/data/com.myApp/shared_prefs/[app_name]{/[version]}`
-
-***TODO: add specific config files info***
-
-#### *Configuration schema (TODO)*
-
-```yaml
-# ~/.config/<project>/config.yaml
-profile: default
-timeout_ms: 30000
-retries: 3
-output:
-  format: human # or json
-  color: auto   # auto|always|never
-```
-
-#### *Validate configuration (TODO)*
-
-```sh
-<project> config validate
-<project> config show --effective
-```
-
-#### *Environment variables (TODO)*
-
-| Variable | Description | Default | Notes |
-| --- | --- | --- | --- |
-| `<PROJECT>_CONFIG` | Config file path | \<auto\> | |
-| `<PROJECT>_LOG_LEVEL` | Log level | info | debug |
-| `<PROJECT>_NO_COLOR` | Disable color | \<unset\> | obeys `NO_COLOR` too |
-
-### *Input / output behavior (TODO)*
-
-#### *`stdin` and piping (TODO)*
-
-```sh
-cat input.txt | <project> <command> --from-stdin
-```
-
-#### *Output formats (TODO)*
-
-- *Human-readable (default)*
-- *JSON (`--json`) for automation and scripting*
-
-#### Color and formatting
-
-Rich can provide color output in logging and in CLI output. App:
+Rich provides color output in logging and CLI output. The app:
 
 - Respects `NO_COLOR` environment variable
-- Has `--no-color` / `--color` flag: if given will override the `NO_COLOR` environment variable
-- If there is no environment variable and no flag is given, default to having color
+- Has `--no-color` / `--color` flag: if given, overrides the `NO_COLOR` environment variable
+- If there is no environment variable and no flag is given, defaults to having color
 
-To control color see [Rich's markup conventions](https://rich.readthedocs.io/en/latest/markup.html). In summary, the basic 16 colors are:
+To control color see [Rich's markup conventions](https://rich.readthedocs.io/en/latest/markup.html).
 
-- `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`
-- Bright variants: `bright_black` (gray), `bright_red`, `bright_green`, `bright_yellow`, `bright_blue`, `bright_magenta`, `bright_cyan`, `bright_white`
+## Project Design
 
-Extended named colors (256-color palette) are as above, plus many more, including these useful ones:
+### Architecture overview
 
-- `grey0` through `grey100` (grayscale)
-- `dark_red`, `light_red`, `dark_green`, `light_green`, `dark_blue`, `light_blue`, `dark_cyan`, `light_cyan`, `dark_magenta`, `light_magenta`
-- `orange1`, `orange3`, `orange4`, `purple`, `purple4`, `gold1`, `gold3`
+TransAI uses an abstract base class pattern for backend abstraction:
 
-Styles you can combine with colors are: `bold`, `dim`, `italic`, `underline`, `blink`, `reverse`, `strike`, `overline`. Common usage patterns:
+```txt
+CLI (transai.py + cli/query.py)
+  │
+  ├─ LMStudioWorker (core/lms.py)  ──▶  LM Studio server (localhost)
+  │
+  └─ LlamaWorker (core/llama.py)   ──▶  GGUF files on disk
+  │
+  └─ Both implement AIWorker (core/ai.py)
+       │
+       └─ Image utilities (utils/images.py)
+```
 
-- `[red]text[/]` - red text
-- `[bold red]text[/]` - bold red text
-- `[bold]text[/]` - just bold
-- `[#ff0000]text[/]` - hex color (RGB)
-- `[rgb(255,0,0)]text[/]` - RGB notation
-- `[on blue]text[/]` - blue **background**
-- `[red on white]text[/]` - red text on white **background**
+- `AIWorker` defines `LoadModel()` and `ModelCall()` as the public interface
+- `LMStudioWorker` and `LlamaWorker` implement `_Load()` and `_Call()` internally
+- The CLI layer (`transai.py`, `cli/query.py`) orchestrates configuration and delegates to workers
+- Image preprocessing is handled by `utils/images.py`
 
-#### *Exit codes (TODO)*
+### Modules
 
-| Code | Meaning |
+| Module | Responsibility |
 | --- | --- |
-| 0 | Success |
-| 1 | Generic failure |
-| 2 | CLI usage error |
-| 3 | Runtime dependency failure (network/filesystem) |
-| 4 | Partial success (some items failed) |
-
-*Keep this stable if users will script against it.*
-
-### *Logging and observability (TODO)*
-
-- *Log levels: error|warn|info|debug|trace*
-- *Structured logs: \<supported? --log-format=json\>*
-- *Debug bundle: \<project\> debug report (if available)*
-
-### *Safety features (TODO)*
-
-- *Dry run: `--dry-run` (no side effects)*
-- *Non-interactive: `--yes` / `--no-input`*
-- *Force: `--force` (document exactly what it bypasses)*
-
-## *Project Design (TODO)*
-
-### *Architecture overview (TODO)*
-
-*\<High-level description of components and how they interact.\>*
-
-*Example:*
-
-- *CLI parser → configuration loader → core engine → output renderer*
-- *Optional: plugins/adapters for external systems*
-
-### *Modules / packages (TODO)*
-
-| Component | Responsibility |
-| --- | --- |
-| cmd/ | CLI entrypoints and subcommands |
-| internal/core/ | Core business logic |
-| internal/io/ | Filesystem/network adapters |
-| internal/output/ | Output formatting (human/JSON) |
-
-### *Data flow (TODO)*
-
-1. *Parse args + load config*
-1. *Validate inputs*
-1. *Execute core operation(s)*
-1. *Collect results and render output*
-1. *Return exit code*
-
-### *Error handling philosophy (TODO)*
-
-- *Clear actionable messages for user errors*
-- *Structured errors for --json*
-- *Avoid leaking secrets in errors/logs*
-
-### *Security model (TODO)*
-
-- *Principle of least privilege*
-- *Secret handling: never log secrets; redact by default*
-- *TLS verification: on by default; disabling requires explicit opt-in*
-
-### *Performance characteristics (TODO)*
-
-- *Intended scale:*
-- *Complexity notes:*
-- *Benchmarks:*
+| `transai.py` | CLI app definition, global options, `TransAIConfig` dataclass |
+| `cli/query.py` | `query` command implementation |
+| `core/ai.py` | `AIWorker` abstract base class, `AIModelConfig`, shared constants and types |
+| `core/lms.py` | `LMStudioWorker` — LM Studio backend implementation |
+| `core/llama.py` | `LlamaWorker` — llama.cpp backend implementation (GGUF loading, CLIP detection, vision handlers) |
+| `utils/images.py` | Image resizing for vision models, animation frame extraction |
 
 ## Development Instructions
 
@@ -427,14 +357,12 @@ Styles you can combine with colors are: `bold`, `dim`, `italic`, `underline`, `b
 ├── CHANGELOG.md                  ⟸ latest changes/releases
 ├── LICENSE
 ├── Makefile
-├── transai.md                      ⟸ this is auto-generated CLI doc (by `make docs` or `make ci`)
-├── poetry.lock                   ⟸ this is maintained by Poetry, do not manually edit
+├── transai.md                    ⟸ auto-generated CLI doc (by `make docs` or `make ci`)
+├── poetry.lock                   ⟸ maintained by Poetry, do not manually edit
 ├── pyproject.toml                ⟸ most important configurations live here
 ├── README.md                     ⟸ this documentation
 ├── SECURITY.md                   ⟸ security policy
 ├── requirements.txt
-├── .editorconfig
-├── .gitignore
 ├── .pre-commit-config.yaml       ⟸ pre-submit configs
 ├── .github/
 │   ├── copilot-instructions.md   ⟸ GitHub Copilot project-specific instructions
@@ -443,52 +371,42 @@ Styles you can combine with colors are: `bold`, `dim`, `italic`, `underline`, `b
 │       ├── ci.yaml               ⟸ Github CI pipeline
 │       └── codeql.yaml           ⟸ Github security scans and code quality pipeline
 ├── .vscode/
-│   ├── extensions.json
 │   └── settings.json             ⟸ VSCode configs
 ├── scripts/
-│   └── template.py               ⟸ Use template & directory for executable standalone scripts
+│   └── make_test_images.py       ⟸ helper script for generating test images
 ├── src/
-│   └── <your_pkg>/               ⟸ change this directory's name (originally transai)
-│       ├── __init__.py
-│       ├── __main__.py
-│       ├── transai.py              ⟸ Main CLI app entry point (Main())
-│       ├── py.typed
+│   └── transai/
+│       ├── __init__.py           ⟸ version and package metadata
+│       ├── __main__.py           ⟸ `python -m transai` entry point
+│       ├── transai.py            ⟸ main CLI app entry point (Run(), Main())
+│       ├── py.typed              ⟸ PEP 561 marker for type stubs
 │       ├── cli/
-│       │   ├── __init__.py
-│       │   └── randomcommand.py  ⟸ CLI commands implementation, to keep `transai.py` clean
+│       │   └── query.py          ⟸ `transai query` command implementation
 │       ├── core/
-│       │   ├── __init__.py
-│       │   └── example.py        ⟸ Business logic goes in this directory
+│       │   ├── ai.py             ⟸ AIWorker abstract base class, AIModelConfig, shared types
+│       │   ├── llama.py          ⟸ LlamaWorker (llama.cpp backend)
+│       │   └── lms.py            ⟸ LMStudioWorker (LM Studio backend)
 │       └── utils/
-│           ├── __init__.py
-│           └── template.py       ⟸ Use template for starting regular modules
-├── tests/                        ⟸ Unit-Testing goes in this directory
+│           └── images.py         ⟸ image preprocessing for vision models
+├── tests/                        ⟸ unit tests
 │   ├── transai_test.py
-│   └── ...                       ⟸ Usually, a similar structure to `src/transai/...`
+│   ├── cli/
+│   │   └── query_test.py
+│   ├── core/
+│   │   ├── ai_test.py
+│   │   ├── llama_test.py
+│   │   └── lms_test.py
+│   └── utils/
+│       └── images_test.py
 └── tests_integration/
-    └── test_installed_cli.py     ⟸ Integration testing goes in this directory
+    └── test_installed_cli.py     ⟸ integration tests (wheel build + install)
 ```
-
-What each area is for:
-
-- `src/<your_pkg>/cli.py`: **Typer app** definition, top-level callback (**Main**), and all **commands/subcommands**.
-- `src/<your_pkg>/core/example.py`: **“Business logic”** layer. CLI commands call into here. This is the main testable logic layer.
-- `src/<your_pkg>/utils/template.py`: A template module showing a recommended docstring structure for **new modules**.
-- `tests/test_cli.py`: Comprehensive CLI **tests** using Typer’s CliRunner, pytest.mark.parametrize, and unittest.mock.patch.
-- `scripts/template.py`: A template for **“directly executable scripts”** (includes a shebang).
-
-Specifically note and use the templates.
-
-- **`src/<your_pkg>/utils/template.py`** is a suggested “module docstring skeleton” (purpose, API, inputs, errors, security, etc.). Copy it when creating new modules.
-- **`scripts/template.py`** is a suggested “executable script skeleton” (with shebang) that imports and calls into the package. Scripts should remain thin.
 
 ### Development Setup
 
-#### *Requirements (TODO)*
-
 #### Install Python
 
-Here is a suggested recipe to install an arbitrary Python version on **Linux**:
+On **Linux**:
 
 ```sh
 sudo apt-get update
@@ -497,24 +415,24 @@ sudo apt-get install git python3 python3-dev python3-venv build-essential softwa
 
 sudo add-apt-repository ppa:deadsnakes/ppa
 sudo apt-get update
-sudo apt-get install python3.12  # or python3.13 or python3.14 - TODO: pick a version
+sudo apt-get install python3.12
 ```
 
-and on **Mac**:
+On **Mac**:
 
 ```sh
 brew update
 brew upgrade
 brew cleanup -s
 
-brew install git python@3.12  # or python3.13 or python3.14 - TODO: pick a version
+brew install git python@3.12
 ```
 
 #### Install Poetry (recommended: `pipx`)
 
 [Poetry reference.](https://python-poetry.org/docs/cli/)
 
-Install `pipx` (if you don’t have it):
+Install `pipx` (if you don't have it):
 
 ```sh
 python3 -m pip install --user pipx
@@ -536,7 +454,7 @@ poetry config pypi-token.pypi <TOKEN>  # add your personal PyPI project token, i
 
 #### Make sure `.venv` is local
 
-This template expects a project-local virtual environment at `./.venv` (VSCode settings assume it, for example).
+This project expects a project-local virtual environment at `./.venv` (VSCode settings assume it).
 
 ```sh
 poetry config virtualenvs.in-project true
@@ -554,7 +472,7 @@ cd transai
 From the repository root:
 
 ```sh
-poetry env use python3.12  # creates the .venv with the correct Python version - TODO: pick correct Python version
+poetry env use python3.12  # creates the .venv with the correct Python version
 poetry sync                # sync env to project's poetry.lock file
 poetry env info            # no-op: just to check that environment looks good
 poetry check               # no-op: make sure all pyproject.toml fields are being used correctly
@@ -600,19 +518,6 @@ Recommended VSCode extensions:
 - Markdown Preview Enhanced (`shd101wyy.markdown-preview-enhanced`, optional)
 - GitHub Copilot (`github.copilot`) - AI assistant; reads `.github/copilot-instructions.md` for project-specific coding conventions (indentation, naming, workflow)
 
-### *Build (TODO)*
-
-```sh
-<build command>
-```
-
-### *Run locally (TODO)*
-
-```sh
-<project> --help
-<run-from-source command>
-```
-
 ### Testing
 
 #### Unit tests / Coverage
@@ -627,41 +532,35 @@ make cov  # coverage run, equivalent to: poetry run pytest --cov=src --cov-repor
 
 A test can be marked with a "tag" by just adding a decorator:
 
-```py
+```python
 @pytest.mark.slow
 def test_foo_method() -> None:
   """Test."""
   ...
 ```
 
-These tags, like `slow` above are defined in `pyproject.toml`, in section `[tool.pytest.ini_options.markers]`, and you can define your own there. The ones already defined are:
+These tags are defined in `pyproject.toml`, in section `[tool.pytest.ini_options.markers]`:
 
 | Tag | Meaning |
 | --- | --- |
 | `slow` | test is slow (> 1s) |
-| `flaky` | AVOID! - test is known to be flaky |
+| `flaky` | AVOID! — test is known to be flaky |
 | `stochastic` | test is capable of failing (even if very unlikely) |
+| `integration` | integration test (wheel build + install) |
 
-You can use them to filter tests, for example:
+You can use them to filter tests:
 
 ```sh
 poetry run pytest -vvv -m slow  # run only the slow tests
 ```
 
-You can find the slowest tests by running (example suggestions):
+You can find the slowest tests by running:
 
 ```sh
 poetry run pytest -vvv -q --durations=20
-poetry run pytest -vvv -q --durations=20 -m "not slow"  # find unknown slow methods
-poetry run pytest -vvv -q --durations=20 -m slow        # check methods marked `slow` are in fact slow
 ```
 
-You can search for flaky tests by running `make flakes`, which runs all tests 100 times. Or you can do more, like in the example:
-
-```sh
-make flakes  # equivalent to: poetry run pytest --flake-finder --flake-runs=100 -q tests
-poetry run pytest --flake-finder --flake-runs=10000 -m "not slow"
-```
+You can search for flaky tests by running `make flakes`, which runs all tests 100 times.
 
 #### Instrumenting your code
 
@@ -683,36 +582,15 @@ Integration tests validate packaging and the installed console script by:
 
 - building a wheel from the repository
 - installing that wheel into a fresh temporary virtualenv
-- running the installed console script(s) to verify behavior (for example, `--version` and basic commands)
+- running the installed console script(s) to verify behavior (e.g., `--version` and basic commands)
 
-The canonical integration test is [tests_integration/test_installed_cli.py](tests_integration/test_installed_cli.py). It uses helpers from `transcrypto.utils.config` to simplify the workflow:
-
-- `EnsureAndInstallWheel(repo_root, tmp_path, expected_version, app_names)` — builds the wheel and installs it into a temporary venv, returning the venv python and `bin` directory.
-- `EnsureConsoleScriptsPrintExpectedVersion(vpy, bin_dir, expected_version, app_names)` — verifies the console scripts exist and that `--version` prints the expected version.
-- `CallGetConfigDirFromVEnv(vpy, app_name)` — calls the installed CLI inside the venv to find its data/config directory (used for cleanup/isolation).
-
-Tests in this suite are marked with `pytest.mark.integration`.
+The canonical integration test is [tests_integration/test_installed_cli.py](tests_integration/test_installed_cli.py). Tests in this suite are marked with `pytest.mark.integration`.
 
 Run the integration tests with:
 
 ```sh
-# Run only integration-marked tests (recommended)
-poetry run pytest -m integration -q
-
-# Or run the full integration target (equivalent)
-make integration
+make integration  # or: poetry run pytest -m integration -q
 ```
-
-Notes:
-
-- These tests are slower and require `poetry`/venv support on the host system.
-- Keep the `_APP_NAME` / `_APP_NAMES` constants in the test aligned with your package and console-script names.
-- Use `--no-color` in assertions to avoid ANSI escape sequences when checking output.
-
-#### *Golden tests for CLI output (TODO)*
-
-- *Human output:*
-- *JSON output:*
 
 ### Linting / formatting / static analysis
 
@@ -735,11 +613,6 @@ make type  # equivalent to: poetry run mypy src tests tests_integration
 
 (Pyright is primarily for editor-time; MyPy is what CI enforces.)
 
-### *Documentation updates (TODO)*
-
-- *How docs are built: \<mkdocs/docusaurus/sphinx/etc.\>*
-- *CLI reference generation:*
-
 ### Versioning and releases
 
 #### Versioning scheme
@@ -747,8 +620,8 @@ make type  # equivalent to: poetry run mypy src tests tests_integration
 This project follows a pragmatic versioning approach:
 
 - **Patch**: bug fixes / docs / small improvements.
-- **Minor**: new template features or non-breaking developer workflow changes.
-- **Major**: breaking template changes (e.g., required file/command renames).
+- **Minor**: new features or non-breaking changes.
+- **Major**: breaking API changes.
 
 See: [CHANGELOG.md](CHANGELOG.md)
 
@@ -760,15 +633,15 @@ Poetry can bump versions:
 
 ```sh
 # bump the version!
-poetry version minor  # updates 1.6 to 1.7, for example
+poetry version minor  # updates 1.0.0 to 1.1.0, for example
 # or:
-poetry version patch  # updates 1.6 to 1.6.1
+poetry version patch  # updates 1.0.0 to 1.0.1
 # or:
 poetry version <version-number>
 # (also updates `pyproject.toml` and `poetry.lock`)
 ```
 
-This updates `[project].version` in `pyproject.toml`. **Remember to also update `src/<your_pkg>/__init__.py` to match (this repo gets/prints `__version__` from there)!**
+This updates `[project].version` in `pyproject.toml`. **Remember to also update `src/transai/__init__.py` to match (this repo gets/prints `__version__` from there)!**
 
 ##### Update dependency versions
 
@@ -788,7 +661,7 @@ Keep tool versions aligned. Remember to check your diffs before submitting (espe
 
 ##### Exporting the `requirements.txt` file
 
-This template does not generate `requirements.txt` automatically (Poetry uses `poetry.lock`). If you need a `requirements.txt` for Docker/legacy tooling, use Poetry’s export plugin (`poetry-plugin-export`) by simply running:
+This project does not generate `requirements.txt` automatically (Poetry uses `poetry.lock`). If you need a `requirements.txt` for Docker/legacy tooling, use Poetry's export plugin (`poetry-plugin-export`) by simply running:
 
 ```sh
 make req  # or: poetry export --format requirements.txt --without-hashes --output requirements.txt
@@ -803,8 +676,8 @@ Make sure to run `make docs` or even better `make ci`. Both will update the CLI 
 Publish to GIT, including a TAG:
 
 ```sh
-git commit -a -m "release version 0.1.0"
-git tag 0.1.0
+git commit -a -m "release version 1.0.0"
+git tag 1.0.0
 git push
 git push --tags
 ```
@@ -820,88 +693,8 @@ poetry publish
 
 Remember to update [CHANGELOG.md](CHANGELOG.md).
 
-### *Contributing (TODO)*
-
-- *See `CONTRIBUTING.md*`
-- *Code of conduct: `CODE_OF_CONDUCT.md`*
-
 ## Security
 
 Please refer to the security policy in [SECURITY.md](SECURITY.md) for supported versions and how to report vulnerabilities.
 
 The project has a [**codeql**](https://codeql.github.com/docs/) config file in `.github/workflows/codeql.yaml` that weekly (defaulting to Fridays) scans the project for code quality and security issues. It will also run on all commits. Github security issues will be opened in the project if anything is found.
-
-### *Supply chain (TODO)*
-
-- *Dependency pinning:*
-- *Signed releases: \<GPG/cosign\>*
-- *SBOM: \<available? where?\>*
-
-## *Reliability (TODO)*
-
-### *Operational guidance (TODO)*
-
-- *Recommended timeouts:*
-- *Retry behavior:*
-- *Idempotency:*
-
-### *Running in automation (TODO)*
-
-- *CI usage examples*
-- *Cron usage examples*
-- *Non-interactive flags (`--yes`, `--json`, `--quiet`)*
-
-### *Failure modes (TODO)*
-
-- *Network failures:*
-- *Partial failures: \<exit code + output behavior\>*
-- *Rate limiting:*
-
-## *Troubleshooting (TODO)*
-
-### *Enable debug output (TODO)*
-
-```sh
-<project> --verbose
-<project> --log-level debug <command>
-```
-
-### *Common issues (TODO)*
-
-- *Problem:*
-*Cause:*
-*Fix:*
-
-- *Problem:*
-*Fix:*
-
-### *Collect diagnostics (TODO)*
-
-```sh
-<project> debug report --output diagnostics.zip
-```
-
-## *FAQ (TODO)*
-
-### *FAQ Section I (TODO)*
-
-#### *Why does `<project>` need `<permission/dependency>`? (TODO)*
-
-*\<Answer\>*
-
-#### *How do I migrate from version X to Y? (TODO)*
-
-*\<Answer + link to migration guide\>*
-
-#### *How stable is the JSON output? (TODO)*
-
-*\<Answer + schema contract\>*
-
-## *Glossary (TODO)*
-
-- A
-- B
-
----
-
-*Thanks!* - Daniel Balparda
