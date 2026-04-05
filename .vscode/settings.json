@@ -208,6 +208,7 @@
     "pycodestyle",
     "pycparser",
     "pydantic",
+    "pydocs",
     "pydocstyle",
     "pyenv",
     "pyflakes",

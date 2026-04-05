@@ -12,8 +12,7 @@ from transcrypto.utils import config as app_config
 from transcrypto.utils import logging as cli_logging
 
 from tests import transai_test
-from tests.core import ai_test
-from transai.core import llama, lms
+from transai.core import ai, llama, lms
 
 
 @pytest.fixture(autouse=True)
@@ -52,7 +51,7 @@ def testQueryRaisesErrorWhenNoLMSAndNoRoot() -> None:
 def testQueryUsesLMStudioWorker() -> None:
   """Query command uses LMStudioWorker when --lms (the default)."""
   worker_mock = mock.MagicMock()
-  worker_mock.LoadModel.return_value = (ai_test.MakeConfig(), {})
+  worker_mock.LoadModel.return_value = (ai.MakeAIModelConfig(), {})
   worker_mock.ModelCall.return_value = 'Paris'
   with mock.patch.object(lms, 'LMStudioWorker', return_value=worker_mock):
     result = transai_test.CallCLI(['query', 'What is the capital of France?'])
@@ -64,7 +63,7 @@ def testQueryUsesLMStudioWorker() -> None:
 def testQueryUsesLlamaWorkerWhenNoLMS(tmp_path: pathlib.Path) -> None:
   """Query command uses LlamaWorker when --no-lms and --root are provided."""
   worker_mock = mock.MagicMock()
-  worker_mock.LoadModel.return_value = (ai_test.MakeConfig(), {})
+  worker_mock.LoadModel.return_value = (ai.MakeAIModelConfig(), {})
   worker_mock.ModelCall.return_value = 'Bonjour'
   with mock.patch.object(llama, 'LlamaWorker', return_value=worker_mock):
     result = transai_test.CallCLI(['--no-lms', '--root', str(tmp_path), 'query', 'hi'])

@@ -15,7 +15,6 @@ import lmstudio
 import pydantic
 import pytest
 
-from tests.core import ai_test
 from transai.core import ai, lms
 
 # ---------------------------------------------------------------------------
@@ -136,7 +135,7 @@ def testLMSWorkerCloseAlsoClearsLoadedModels() -> None:
   """Close() must clear _loaded_models via super().Close()."""
   worker, _client = _MakeLMSWorker()
   lm_mock = mock.MagicMock(spec=lmstudio.LLM)
-  config: ai.AIModelConfig = ai_test.MakeConfig()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig()
   worker._loaded_models['test-model'] = (config, {}, lm_mock)
   worker.Close()
   assert worker._loaded_models == {}
@@ -172,7 +171,7 @@ def _MakeModelInfo(
 def testLMSWorkerLoadSuccessBasic() -> None:
   """_Load succeeds for a basic text model."""
   worker, client_mock = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai_test.MakeConfig()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(context=1024)
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   model_info: mock.MagicMock = _MakeModelInfo()
   lm_model_mock.get_info.return_value = model_info
@@ -188,7 +187,7 @@ def testLMSWorkerLoadSuccessBasic() -> None:
 def testLMSWorkerLoadUpdatesModelIdFromInfo() -> None:
   """_Load replaces model_id with the key returned by model_info.model_key."""
   worker, client_mock = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai_test.MakeConfig(model_id='short-name')
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(model_id='short-name', context=1024)
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   model_info: mock.MagicMock = _MakeModelInfo(model_key='canonical/model-key')
   lm_model_mock.get_info.return_value = model_info
@@ -202,7 +201,7 @@ def testLMSWorkerLoadUpdatesModelIdFromInfo() -> None:
 def testLMSWorkerLoadSetsVisionFromModelInfo() -> None:
   """_Load propagates vision and tooling from model_info into config."""
   worker, client_mock = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai_test.MakeConfig(vision=True, tooling=False)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(vision=True, tooling=False, context=1024)
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   model_info: mock.MagicMock = _MakeModelInfo(vision=True, tooling=True)
   lm_model_mock.get_info.return_value = model_info
@@ -217,7 +216,7 @@ def testLMSWorkerLoadSetsVisionFromModelInfo() -> None:
 def testLMSWorkerLoadRaisesIfModelInfoNotLlmInstanceInfo() -> None:
   """_Load raises Error if get_info() doesn't return an LlmInstanceInfo."""
   worker, client_mock = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai_test.MakeConfig()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig()
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   lm_model_mock.get_info.return_value = 'not-an-instance-info'
   client_mock.llm.load_new_instance.return_value = lm_model_mock
@@ -231,7 +230,7 @@ def testLMSWorkerLoadRaisesIfModelInfoNotLlmInstanceInfo() -> None:
 def testLMSWorkerLoadRaisesIfVisionRequestedButNotSupported() -> None:
   """_Load raises Error when vision=True but model doesn't support it."""
   worker, client_mock = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai_test.MakeConfig(vision=True)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(vision=True)
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   model_info: mock.MagicMock = _MakeModelInfo(vision=False)
   lm_model_mock.get_info.return_value = model_info
@@ -247,7 +246,7 @@ def testLMSWorkerLoadRaisesIfVisionRequestedButNotSupported() -> None:
 def testLMSWorkerLoadRaisesIfToolingRequestedButNotSupported() -> None:
   """_Load raises Error when tooling=True but model doesn't support it."""
   worker, client_mock = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai_test.MakeConfig(tooling=True)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(tooling=True)
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   model_info: mock.MagicMock = _MakeModelInfo(tooling=False)
   lm_model_mock.get_info.return_value = model_info
@@ -263,7 +262,7 @@ def testLMSWorkerLoadRaisesIfToolingRequestedButNotSupported() -> None:
 def testLMSWorkerLoadRaisesIfContextLengthInsufficient() -> None:
   """_Load raises Error when model's context length < requested context."""
   worker, client_mock = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai_test.MakeConfig(context=8192)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(context=8192)
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   model_info: mock.MagicMock = _MakeModelInfo(max_context=16384)
   lm_model_mock.get_info.return_value = model_info
@@ -279,7 +278,7 @@ def testLMSWorkerLoadRaisesIfContextLengthInsufficient() -> None:
 def testLMSWorkerLoadRaisesOnReasoning() -> None:
   """_Load raises Error when config.reasoning=True (not supported)."""
   worker, _client = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai_test.MakeConfig(reasoning=True)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(reasoning=True)
   with pytest.raises(lms.Error, match='reasoning is not supported'):
     worker._Load(config)
 
@@ -287,12 +286,13 @@ def testLMSWorkerLoadRaisesOnReasoning() -> None:
 def testLMSWorkerLoadWarnsOnIgnoredFields() -> None:
   """_Load emits warnings for model_path, kv_cache, flash, gpu_layers, spec_tokens."""
   worker, client_mock = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai_test.MakeConfig(
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(
     model_path=pathlib.Path('/some/path.gguf'),
     kv_cache=8,
     flash=True,
     gpu_layers=10,
     spec_tokens=3,
+    context=1024,
   )
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   model_info: mock.MagicMock = _MakeModelInfo()
@@ -336,7 +336,7 @@ def _MakePredictionResult(
 def testLMSCallReturnsStringContent() -> None:
   """_Call returns result.content when output_format=str."""
   worker, _client = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai_test.MakeConfig()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig()
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   pred_result: mock.MagicMock = _MakePredictionResult('hello world')
   lm_model_mock.respond.return_value = pred_result
@@ -360,7 +360,7 @@ def testLMSCallReturnsParsedPydanticModel() -> None:
     confidence: float
 
   worker, _client = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai_test.MakeConfig()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig()
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   parsed_data: dict[str, str | float] = {'category': 'dog', 'confidence': 0.95}
   pred_result: mock.MagicMock = _MakePredictionResult('ignored', parsed=parsed_data)
@@ -380,7 +380,7 @@ def testLMSCallReturnsParsedPydanticModel() -> None:
 def testLMSCallRaisesOnLMStudioServerError() -> None:
   """_Call wraps lmstudio.LMStudioServerError into Error."""
   worker, _client = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai_test.MakeConfig()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig()
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   lm_model_mock.respond.side_effect = lmstudio.LMStudioServerError('server error')
   loaded: ai.LoadedModel = (config, {}, lm_model_mock)
@@ -396,7 +396,7 @@ def testLMSCallRaisesOnLMStudioServerError() -> None:
 def testLMSCallRaisesOnUnexpectedStopReason() -> None:
   """_Call raises Error when stop_reason is not 'eosFound'."""
   worker, _client = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai_test.MakeConfig()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig()
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   pred_result: mock.MagicMock = _MakePredictionResult('partial', stop_reason='maxTokens')
   lm_model_mock.respond.return_value = pred_result
@@ -413,7 +413,7 @@ def testLMSCallRaisesOnUnexpectedStopReason() -> None:
 def testLMSCallWithImageBytes() -> None:
   """_Call passes prepared images to chat.add_user_message."""
   worker, _client = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai_test.MakeConfig(vision=True)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(vision=True)
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   pred_result: mock.MagicMock = _MakePredictionResult('vision result')
   lm_model_mock.respond.return_value = pred_result
@@ -437,7 +437,7 @@ def testLMSCallWithImageBytes() -> None:
 def testLMSCallWithImagePaths() -> None:
   """_Call handles pathlib.Path images correctly (passed to prepare_image)."""
   worker, _client = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai_test.MakeConfig(vision=True)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(vision=True)
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   pred_result: mock.MagicMock = _MakePredictionResult('path vision result')
   lm_model_mock.respond.return_value = pred_result
@@ -459,7 +459,7 @@ def testLMSCallWithImagePaths() -> None:
 def testLMSCallNoImages() -> None:
   """_Call passes images=None when no images provided."""
   worker, _client = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai_test.MakeConfig()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig()
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   pred_result: mock.MagicMock = _MakePredictionResult('text only')
   lm_model_mock.respond.return_value = pred_result
@@ -484,7 +484,7 @@ def testLMSCallNoImages() -> None:
 def testLMSWorkerLoadModelAndModelCall() -> None:
   """LoadModel then ModelCall round-trip works correctly."""
   worker, client_mock = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai_test.MakeConfig(model_id='my-lms-model')
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(model_id='my-lms-model', context=1024)
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   model_info: mock.MagicMock = _MakeModelInfo(model_key='my-lms-model')
   lm_model_mock.get_info.return_value = model_info

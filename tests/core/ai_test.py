@@ -24,36 +24,6 @@ from transai.core import ai
 # ---------------------------------------------------------------------------
 
 
-def MakeConfig(**overrides: object) -> ai.AIModelConfig:
-  """Create a valid default AIModelConfig.
-
-  Returns:
-    AIModelConfig with all required fields set to valid defaults, and overrides applied
-
-  """
-  base: ai.AIModelConfig = {
-    'model_id': 'test-model',
-    'version': '1.0.0',
-    'model_path': None,
-    'clip_path': None,
-    'seed': 42,
-    'context': 1024,
-    'temperature': 0.1,
-    'gpu_ratio': 0.8,
-    'gpu_layers': -1,
-    'use_mmap': True,
-    'vision': False,
-    'tooling': False,
-    'reasoning': False,
-    'fp16': False,
-    'flash': False,
-    'spec_tokens': None,
-    'kv_cache': None,
-  }
-  base.update(overrides)  # type: ignore[typeddict-item]
-  return base
-
-
 class _ConcreteWorker(ai.AIWorker):
   """Minimal concrete AIWorker used only in tests."""
 
@@ -95,7 +65,7 @@ def _MakeLlamaModel(config: ai.AIModelConfig | None = None) -> ai.LoadedModel:
 
   """
   if config is None:
-    config = MakeConfig()
+    config = ai.MakeAIModelConfig()
   llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
   return (config, {'key': 'val'}, llm_mock)
 
@@ -148,8 +118,8 @@ def testCloseCallsCloseOnLlamaModels() -> None:
   """Close() must call .close() on llama_cpp.Llama instances."""
   w = _ConcreteWorker()
   llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
-  config: ai.AIModelConfig = MakeConfig()
-  w._loaded_models['test-model'] = (config, {}, llm_mock)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig()
+  w._loaded_models[ai.DEFAULT_TEXT_MODEL] = (config, {}, llm_mock)
   w.Close()
   llm_mock.close.assert_called_once()
   assert not w._loaded_models  # dict cleared
@@ -161,8 +131,8 @@ def testCloseDoesNotCallCloseOnLMStudioModels() -> None:
   # Use a plain MagicMock instead of spec=lmstudio.LLM to avoid AttributeError
   # if lmstudio.LLM doesn't expose 'close' in its public interface
   lms_mock = mock.MagicMock()
-  config: ai.AIModelConfig = MakeConfig()
-  w._loaded_models['test-model'] = (config, {}, lms_mock)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig()
+  w._loaded_models[ai.DEFAULT_TEXT_MODEL] = (config, {}, lms_mock)
   w.Close()
   # The mock has close() but the code should NOT call it since lmstudio.LLM
   # is not in _LLM_REQUIRING_CLOSE_METHOD
@@ -174,7 +144,7 @@ def testCloseClearsModelsDict() -> None:
   """Close() must empty _loaded_models even when no models need close()."""
   w = _ConcreteWorker()
   lms_mock = mock.MagicMock(spec=lmstudio.LLM)
-  config: ai.AIModelConfig = MakeConfig()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig()
   w._loaded_models['m1'] = (config, {}, lms_mock)
   w._loaded_models['m2'] = (config, {}, lms_mock)
   w.Close()
@@ -189,7 +159,7 @@ def testCloseClearsModelsDict() -> None:
 def testConfigSeedStripsAndLowercasesModelId() -> None:
   """_ConfigSeed must normalize model_id."""
   w = _ConcreteWorker()
-  result: ai.AIModelConfig = w._ConfigSeed(MakeConfig(model_id='  MyModel  '))
+  result: ai.AIModelConfig = w._ConfigSeed(ai.MakeAIModelConfig(model_id='  MyModel  '))
   assert result['model_id'] == 'mymodel'
 
 
@@ -197,7 +167,7 @@ def testConfigSeedInjectsRandomSeedWhenNone() -> None:
   """_ConfigSeed must inject a random seed when seed=None."""
   w = _ConcreteWorker()
   with mock.patch.object(saferandom, 'RandBits', return_value=12345) as rand_mock:
-    result: ai.AIModelConfig = w._ConfigSeed(MakeConfig(seed=None))
+    result: ai.AIModelConfig = w._ConfigSeed(ai.MakeAIModelConfig(seed=None))
   rand_mock.assert_called_once_with(31)
   assert result['seed'] == 12345
 
@@ -206,7 +176,7 @@ def testConfigSeedKeepsExplicitSeed() -> None:
   """Explicit seed is kept, RandBits should NOT be called."""
   w = _ConcreteWorker()
   with mock.patch.object(saferandom, 'RandBits') as rand_mock:
-    result: ai.AIModelConfig = w._ConfigSeed(MakeConfig(seed=99))
+    result: ai.AIModelConfig = w._ConfigSeed(ai.MakeAIModelConfig(seed=99))
   rand_mock.assert_not_called()
   assert result['seed'] == 99
 
@@ -215,111 +185,111 @@ def testConfigSeedRaisesOnEmptyModelId() -> None:
   """_ConfigSeed must raise Error on empty model_id."""
   w = _ConcreteWorker()
   with pytest.raises(ai.Error, match='model_id'):
-    w._ConfigSeed(MakeConfig(model_id='   '))
+    w._ConfigSeed(ai.MakeAIModelConfig(model_id='   '))
 
 
 def testConfigSeedRaisesOnContextTooSmall() -> None:
   """_ConfigSeed must raise Error when context < 16."""
   w = _ConcreteWorker()
   with pytest.raises(ai.Error, match='context'):
-    w._ConfigSeed(MakeConfig(context=8))
+    w._ConfigSeed(ai.MakeAIModelConfig(context=8))
 
 
 def testConfigSeedRaisesOnContextTooLarge() -> None:
   """_ConfigSeed must raise Error when context > AI_MAX_CONTEXT."""
   w = _ConcreteWorker()
   with pytest.raises(ai.Error, match='context'):
-    w._ConfigSeed(MakeConfig(context=ai.AI_MAX_CONTEXT + 1))
+    w._ConfigSeed(ai.MakeAIModelConfig(context=ai.AI_MAX_CONTEXT + 1))
 
 
 def testConfigSeedRaisesOnTemperatureTooLow() -> None:
   """_ConfigSeed must raise Error on negative temperature."""
   w = _ConcreteWorker()
   with pytest.raises(ai.Error, match='temperature'):
-    w._ConfigSeed(MakeConfig(temperature=-0.1))
+    w._ConfigSeed(ai.MakeAIModelConfig(temperature=-0.1))
 
 
 def testConfigSeedRaisesOnTemperatureTooHigh() -> None:
   """_ConfigSeed must raise Error when temperature > MAX_TEMPERATURE."""
   w = _ConcreteWorker()
   with pytest.raises(ai.Error, match='temperature'):
-    w._ConfigSeed(MakeConfig(temperature=ai.MAX_TEMPERATURE + 0.01))
+    w._ConfigSeed(ai.MakeAIModelConfig(temperature=ai.MAX_TEMPERATURE + 0.01))
 
 
 def testConfigSeedRaisesOnGpuRatioTooLow() -> None:
   """_ConfigSeed must raise Error when gpu_ratio < 0.1."""
   w = _ConcreteWorker()
   with pytest.raises(ai.Error, match='gpu_ratio'):
-    w._ConfigSeed(MakeConfig(gpu_ratio=0.05))
+    w._ConfigSeed(ai.MakeAIModelConfig(gpu_ratio=0.05))
 
 
 def testConfigSeedRaisesOnGpuRatioTooHigh() -> None:
   """_ConfigSeed must raise Error when gpu_ratio > 1.0."""
   w = _ConcreteWorker()
   with pytest.raises(ai.Error, match='gpu_ratio'):
-    w._ConfigSeed(MakeConfig(gpu_ratio=1.01))
+    w._ConfigSeed(ai.MakeAIModelConfig(gpu_ratio=1.01))
 
 
 def testConfigSeedRaisesOnSeedOutOfRange() -> None:
   """_ConfigSeed must raise Error when explicit seed is out of valid range."""
   w = _ConcreteWorker()
   with pytest.raises(ai.Error, match='seed'):
-    w._ConfigSeed(MakeConfig(seed=0))
+    w._ConfigSeed(ai.MakeAIModelConfig(seed=0))
 
 
 def testConfigSeedRaisesOnSeedNegative() -> None:
   """_ConfigSeed must raise Error on negative seed."""
   w = _ConcreteWorker()
   with pytest.raises(ai.Error, match='seed'):
-    w._ConfigSeed(MakeConfig(seed=-1))
+    w._ConfigSeed(ai.MakeAIModelConfig(seed=-1))
 
 
 def testConfigSeedRaisesOnSeedTooLarge() -> None:
   """_ConfigSeed must raise Error when seed > AI_MAX_SEED."""
   w = _ConcreteWorker()
   with pytest.raises(ai.Error, match='seed'):
-    w._ConfigSeed(MakeConfig(seed=ai.AI_MAX_SEED + 1))
+    w._ConfigSeed(ai.MakeAIModelConfig(seed=ai.AI_MAX_SEED + 1))
 
 
 def testConfigSeedAcceptsMinContext() -> None:
   """Boundary: context=16 is valid."""
   w = _ConcreteWorker()
-  result: ai.AIModelConfig = w._ConfigSeed(MakeConfig(context=16))
+  result: ai.AIModelConfig = w._ConfigSeed(ai.MakeAIModelConfig(context=16))
   assert result['context'] == 16
 
 
 def testConfigSeedAcceptsMaxContext() -> None:
   """Boundary: context=AI_MAX_CONTEXT is valid."""
   w = _ConcreteWorker()
-  result: ai.AIModelConfig = w._ConfigSeed(MakeConfig(context=ai.AI_MAX_CONTEXT))
+  result: ai.AIModelConfig = w._ConfigSeed(ai.MakeAIModelConfig(context=ai.AI_MAX_CONTEXT))
   assert result['context'] == ai.AI_MAX_CONTEXT
 
 
 def testConfigSeedAcceptsZeroTemperature() -> None:
   """Boundary: temperature=0.0 is valid."""
   w = _ConcreteWorker()
-  result: ai.AIModelConfig = w._ConfigSeed(MakeConfig(temperature=0.0))
+  result: ai.AIModelConfig = w._ConfigSeed(ai.MakeAIModelConfig(temperature=0.0))
   assert result['temperature'] == pytest.approx(0.0)  # pyright: ignore[reportUnknownMemberType]
 
 
 def testConfigSeedAcceptsMaxTemperature() -> None:
   """Boundary: temperature=MAX_TEMPERATURE is valid."""
   w = _ConcreteWorker()
-  result: ai.AIModelConfig = w._ConfigSeed(MakeConfig(temperature=ai.MAX_TEMPERATURE))
+  result: ai.AIModelConfig = w._ConfigSeed(ai.MakeAIModelConfig(temperature=ai.MAX_TEMPERATURE))
   assert result['temperature'] == pytest.approx(ai.MAX_TEMPERATURE)  # pyright: ignore[reportUnknownMemberType]
 
 
 def testConfigSeedAcceptsMinGpuRatio() -> None:
   """Boundary: gpu_ratio=0.1 is valid."""
   w = _ConcreteWorker()
-  result: ai.AIModelConfig = w._ConfigSeed(MakeConfig(gpu_ratio=0.1))
+  result: ai.AIModelConfig = w._ConfigSeed(ai.MakeAIModelConfig(gpu_ratio=0.1))
   assert result['gpu_ratio'] == pytest.approx(0.1)  # pyright: ignore[reportUnknownMemberType]
 
 
 def testConfigSeedAcceptsMaxGpuRatio() -> None:
   """Boundary: gpu_ratio=1.0 is valid."""
   w = _ConcreteWorker()
-  result: ai.AIModelConfig = w._ConfigSeed(MakeConfig(gpu_ratio=1.0))
+  result: ai.AIModelConfig = w._ConfigSeed(ai.MakeAIModelConfig(gpu_ratio=1.0))
   assert result['gpu_ratio'] == pytest.approx(1.0)  # pyright: ignore[reportUnknownMemberType]
 
 
@@ -333,10 +303,10 @@ def testLoadModelStoresAndReturnsConfig() -> None:
   w = _ConcreteWorker()
   loaded: ai.LoadedModel = _MakeLlamaModel()
   w._load_return = loaded
-  cfg, meta = w.LoadModel(MakeConfig())
-  assert cfg['model_id'] == 'test-model'
+  cfg, meta = w.LoadModel(ai.MakeAIModelConfig())
+  assert cfg['model_id'] == ai.DEFAULT_TEXT_MODEL
   assert meta == {'key': 'val'}
-  assert 'test-model' in w._loaded_models
+  assert ai.DEFAULT_TEXT_MODEL in w._loaded_models
 
 
 def testLoadModelStoresIsolatedCopies() -> None:
@@ -344,8 +314,8 @@ def testLoadModelStoresIsolatedCopies() -> None:
   w = _ConcreteWorker()
   loaded: ai.LoadedModel = _MakeLlamaModel()
   w._load_return = loaded
-  cfg, _meta = w.LoadModel(MakeConfig())
-  stored_cfg: ai.AIModelConfig = w._loaded_models['test-model'][0]
+  cfg, _meta = w.LoadModel(ai.MakeAIModelConfig())
+  stored_cfg: ai.AIModelConfig = w._loaded_models[ai.DEFAULT_TEXT_MODEL][0]
   # They should be equal content but distinct objects
   assert cfg == stored_cfg
   assert cfg is not stored_cfg
@@ -361,8 +331,8 @@ def testModelCallDelegatesToCall() -> None:
   w = _ConcreteWorker()
   w._call_return = 'hello'
   loaded: ai.LoadedModel = _MakeLlamaModel()
-  w._loaded_models['test-model'] = loaded
-  result: str = w.ModelCall('test-model', 'sys', 'user', str)
+  w._loaded_models[ai.DEFAULT_TEXT_MODEL] = loaded
+  result: str = w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str)
   assert result == 'hello'
 
 
@@ -378,11 +348,11 @@ def testModelCallPassesImagesThrough() -> None:
   w = _ConcreteWorker()
   w._call_return = 'img-result'
   loaded: ai.LoadedModel = _MakeLlamaModel()
-  w._loaded_models['test-model'] = loaded
+  w._loaded_models[ai.DEFAULT_TEXT_MODEL] = loaded
   images: list[ai.AIImageInput] = [b'\x89PNG']
   # patch _Call to capture invocation
   with mock.patch.object(w, '_Call', return_value='img-result') as call_mock:
-    w.ModelCall('test-model', 'sys', 'user', str, images=images)
+    w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str, images=images)
   call_mock.assert_called_once()
   _, kwargs = call_mock.call_args
   assert kwargs.get('images') == images
@@ -393,14 +363,14 @@ def testModelCallPassesMixedImageTypesThrough() -> None:
   w = _ConcreteWorker()
   w._call_return = 'mixed-result'
   loaded: ai.LoadedModel = _MakeLlamaModel()
-  w._loaded_models['test-model'] = loaded
+  w._loaded_models[ai.DEFAULT_TEXT_MODEL] = loaded
   mixed_images: list[ai.AIImageInput] = [
     b'\x89PNG\r\n\x1a\n',  # bytes
     pathlib.Path('/some/image.png'),  # pathlib.Path
     '/another/image.jpg',  # str path
   ]
   with mock.patch.object(w, '_Call', return_value='mixed-result') as call_mock:
-    result: str = w.ModelCall('test-model', 'sys', 'user', str, images=mixed_images)
+    result: str = w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str, images=mixed_images)
   assert result == 'mixed-result'
   call_mock.assert_called_once()
   _, kwargs = call_mock.call_args

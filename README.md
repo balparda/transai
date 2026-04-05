@@ -160,29 +160,20 @@ Both backends share the same abstract interface (`AIWorker`), so you can swap ba
 
 ### Loading a model
 
+`transai.core.ai` exposes a convenience constructor `MakeAIModelConfig(**overrides)` which
+returns a fully-populated `AIModelConfig` TypedDict with sensible defaults.
+
 ```python
 from transai.core import ai, lms, llama
 
-# --- Using LM Studio (recommended) ---
+# --- Using LM Studio ---
 with lms.LMStudioWorker() as worker:
-  config, metadata = worker.LoadModel(ai.AIModelConfig(
-    model_id='qwen3-8b@Q8_0',
-    version='1.0.0',
-    model_path=None,
-    clip_path=None,
-    seed=None,
-    context=32768,
-    temperature=0.15,
-    gpu_ratio=0.8,
-    gpu_layers=-1,
-    use_mmap=True,
-    vision=False,
-    tooling=False,
-    reasoning=False,
-    fp16=False,
-    flash=True,
-    spec_tokens=None,
-    kv_cache=None,
+  config, metadata = worker.LoadModel(ai.MakeAIModelConfig(
+    model_id='qwen3-vl-32b-instruct@Q8_0',
+    vision=True,
+    temperature=0.5,  # only override the ones you care about!
+    # all other fields will have sensible defaults; currently also supported are:
+    # seed, context, gpu_ratio, gpu_layers, use_mmap, fp16, flash, spec_tokens, kv_cache
   ))
   # ... use worker.ModelCall() ...
 
@@ -191,7 +182,7 @@ import pathlib
 with llama.LlamaWorker(pathlib.Path('~/.lmstudio/models/')) as worker:
   config, metadata = worker.LoadModel(ai.AIModelConfig(
     model_id='qwen3-8b@Q8_0',
-    # ... same config fields ...
+    # ... same config field possibilities ...
   ))
   # ... use worker.ModelCall() ...
 ```
@@ -210,17 +201,22 @@ print(response)  # "The capital of France is Paris."
 
 ### Querying a model (structured JSON)
 
+To get a structured object back from the model, just create a `pydantic.BaseModel` class as shown below. Make sure to add pydocs and `pydantic.Field` description to the fields, as all the information (name, type, descriptions) are sent to the model.
+
 ```python
 import pydantic
 
 class CityInfo(pydantic.BaseModel):
-  city: str
-  country: str
-  population: int
+  """City information"""
+
+  city: str = pydantic.Field(description='city name')
+  country: str = pydantic.Field(description='country name')
+  population: int = pydantic.Field(description='city population')
+  districts: list[str] =  pydantic.Field(description='list of city district names')
 
 result: CityInfo = worker.ModelCall(
   model_id='qwen3-8b@Q8_0',
-  system_prompt='Extract city information.',
+  system_prompt='Extract a city information, its country, population, and list of districts.',
   user_prompt='Tell me about Paris, France.',
   output_format=CityInfo,
 )

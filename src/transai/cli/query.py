@@ -11,7 +11,7 @@ import typer
 from transcrypto.cli import clibase
 from transcrypto.utils import timer
 
-from transai import __version__, transai
+from transai import transai
 from transai.core import ai, llama, lms
 
 
@@ -40,20 +40,14 @@ def IsPrimeCLI(  # documentation is help/epilog/args # noqa: D103
       else llama.LlamaWorker(config.models_root, verbose=config.verbose < logging.INFO)  # type: ignore[arg-type]
     )
     model_config, _ = worker.LoadModel(
-      ai.AIModelConfig(
+      ai.MakeAIModelConfig(
         model_id=config.model,
-        model_path=None,  # these may be filled in later or not
-        clip_path=None,
         seed=config.seed,
-        version=__version__,
         context=config.context,
         temperature=config.temperature,
         gpu_ratio=config.gpu,
         gpu_layers=config.gpu_layers,
         use_mmap=config.use_mmap,
-        vision=False,
-        tooling=False,
-        reasoning=False,
         fp16=config.fp16,
         flash=config.flash,
         spec_tokens=config.spec_tokens,

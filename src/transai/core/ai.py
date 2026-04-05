@@ -14,6 +14,8 @@ import lmstudio
 import pydantic
 from transcrypto.utils import base, saferandom
 
+from transai import __version__
+
 _LMSTUDIO_ROOT: pathlib.Path = pathlib.Path('~/.lmstudio/models/').expanduser().resolve()
 DEFAULT_MODELS_ROOT: pathlib.Path | None = _LMSTUDIO_ROOT if _LMSTUDIO_ROOT.is_dir() else None
 
@@ -59,6 +61,36 @@ type _SupportedModelObject = llama_cpp.Llama | lmstudio.LLM  # supported backend
 type LoadedModel = tuple[AIModelConfig, AIModelMetadata, _SupportedModelObject]
 type _LoadedModelsDict = dict[str, LoadedModel]
 _LLM_REQUIRING_CLOSE_METHOD: tuple[type[_SupportedModelObject], ...] = (llama_cpp.Llama,)
+
+
+def MakeAIModelConfig(**overrides: object) -> AIModelConfig:
+  """Create a valid default AIModelConfig.
+
+  Returns:
+    AIModelConfig with all required fields set to valid defaults, and overrides applied
+
+  """
+  base: AIModelConfig = {
+    'model_id': DEFAULT_TEXT_MODEL,
+    'version': __version__,
+    'model_path': None,
+    'clip_path': None,
+    'seed': None,
+    'context': AI_CONTEXT_LENGTH,
+    'temperature': DEFAULT_TEMPERATURE,
+    'gpu_ratio': DEFAULT_GPU_RATIO,
+    'gpu_layers': -1,
+    'vision': False,
+    'tooling': False,
+    'reasoning': False,
+    'fp16': False,
+    'use_mmap': True,
+    'flash': True,
+    'spec_tokens': None,
+    'kv_cache': None,
+  }
+  base.update(overrides)  # type: ignore[typeddict-item]
+  return base
 
 
 class AIWorker(abc.ABC):

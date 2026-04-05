@@ -19,7 +19,6 @@ import pytest
 import typeguard
 from llama_cpp import llama_chat_format
 
-from tests.core import ai_test
 from transai.core import ai, llama
 
 # ---------------------------------------------------------------------------
@@ -332,7 +331,7 @@ def testLlamaWorkerLoadUsesExplicitModelPath(tmp_path: pathlib.Path) -> None:
   """_Load uses config.model_path when explicitly given."""
   gguf_file: pathlib.Path = tmp_path / 'mymodel.gguf'
   gguf_file.write_bytes(b'x' * 100)
-  config: ai.AIModelConfig = ai_test.MakeConfig(model_path=gguf_file)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(model_path=gguf_file)
   w = llama.LlamaWorker(tmp_path)
   mock_llama = mock.MagicMock(spec=llama_cpp.Llama)
   mock_llama.metadata = {'general.name': 'test'}
@@ -350,7 +349,7 @@ def testLlamaWorkerLoadSearchesForModelWhenNoPath(tmp_path: pathlib.Path) -> Non
   model_dir.mkdir()
   gguf_file: pathlib.Path = model_dir / 'mymodel.gguf'
   gguf_file.write_bytes(b'model data' * 10)
-  config: ai.AIModelConfig = ai_test.MakeConfig(model_id='mymodel')
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(model_id='mymodel')
   w = llama.LlamaWorker(tmp_path)
   mock_llama = mock.MagicMock(spec=llama_cpp.Llama)
   mock_llama.metadata = {'general.name': 'test'}
@@ -366,7 +365,7 @@ def testLlamaWorkerLoadSetsVisionTrueWithClip(tmp_path: pathlib.Path) -> None:
   clip_file: pathlib.Path = tmp_path / 'mmproj-clip.gguf'
   gguf_file.write_bytes(b'model' * 20)
   clip_file.write_bytes(b'clip' * 10)
-  config: ai.AIModelConfig = ai_test.MakeConfig(
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(
     model_id='qwen3-vl', model_path=gguf_file, clip_path=clip_file, vision=True
   )
   w = llama.LlamaWorker(tmp_path)
@@ -388,7 +387,7 @@ def testLlamaWorkerLoadRaisesIfVisionRequestedButNoClip(tmp_path: pathlib.Path) 
   """_Load raises Error when vision=True but no clip file found."""
   gguf_file: pathlib.Path = tmp_path / 'no-vis.gguf'
   gguf_file.write_bytes(b'model' * 20)
-  config: ai.AIModelConfig = ai_test.MakeConfig(
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(
     model_id='no-vis', model_path=gguf_file, vision=True
   )
   w = llama.LlamaWorker(tmp_path)
@@ -402,7 +401,7 @@ def testLlamaWorkerLoadRaisesOnUnknownVisionHandler(tmp_path: pathlib.Path) -> N
   clip_file: pathlib.Path = tmp_path / 'mmproj.gguf'
   gguf_file.write_bytes(b'model' * 20)
   clip_file.write_bytes(b'clip' * 10)
-  config: ai.AIModelConfig = ai_test.MakeConfig(model_path=gguf_file, clip_path=clip_file)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(model_path=gguf_file, clip_path=clip_file)
   w = llama.LlamaWorker(tmp_path)
   with (
     mock.patch('transai.core.llama._DetectVisionHandler', return_value=None),
@@ -415,7 +414,7 @@ def testLlamaWorkerLoadUsesSpecTokens(tmp_path: pathlib.Path) -> None:
   """_Load creates a draft model when spec_tokens > 0."""
   gguf_file: pathlib.Path = tmp_path / 'mymodel.gguf'
   gguf_file.write_bytes(b'x' * 100)
-  config: ai.AIModelConfig = ai_test.MakeConfig(model_path=gguf_file, spec_tokens=5)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(model_path=gguf_file, spec_tokens=5)
   w = llama.LlamaWorker(tmp_path)
   mock_llama = mock.MagicMock(spec=llama_cpp.Llama)
   mock_llama.metadata = {}
@@ -435,7 +434,7 @@ def testLlamaWorkerLoadSetsToolingFromMetadata(tmp_path: pathlib.Path) -> None:
   """_Load sets tooling=True when metadata contains tooling keywords."""
   gguf_file: pathlib.Path = tmp_path / 'tool-model.gguf'
   gguf_file.write_bytes(b'x' * 100)
-  config: ai.AIModelConfig = ai_test.MakeConfig(model_path=gguf_file)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(model_path=gguf_file)
   w = llama.LlamaWorker(tmp_path)
   mock_llama = mock.MagicMock(spec=llama_cpp.Llama)
   mock_llama.metadata = {'model.type': 'functionary-chat'}
@@ -448,7 +447,7 @@ def testLlamaWorkerLoadSetsReasoningFromMetadata(tmp_path: pathlib.Path) -> None
   """_Load sets reasoning=True when metadata contains reasoning keywords."""
   gguf_file: pathlib.Path = tmp_path / 'reason-model.gguf'
   gguf_file.write_bytes(b'x' * 100)
-  config: ai.AIModelConfig = ai_test.MakeConfig(model_path=gguf_file)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(model_path=gguf_file)
   w = llama.LlamaWorker(tmp_path)
   mock_llama = mock.MagicMock(spec=llama_cpp.Llama)
   mock_llama.metadata = {'model.type': 'deepseek-r1-reasoning'}
@@ -461,7 +460,7 @@ def testLlamaWorkerLoadHandlesNoneMetadata(tmp_path: pathlib.Path) -> None:
   """_Load handles the case where llm.metadata is None."""
   gguf_file: pathlib.Path = tmp_path / 'mymodel.gguf'
   gguf_file.write_bytes(b'x' * 100)
-  config: ai.AIModelConfig = ai_test.MakeConfig(model_path=gguf_file)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(model_path=gguf_file)
   w = llama.LlamaWorker(tmp_path)
   mock_llama = mock.MagicMock(spec=llama_cpp.Llama)
   mock_llama.metadata = None
@@ -477,7 +476,7 @@ def testLlamaWorkerLoadHandlesNoneMetadata(tmp_path: pathlib.Path) -> None:
 
 def testLlamaCallReturnsStringForStrFormat(tmp_path: pathlib.Path) -> None:
   """_Call returns string content when output_format=str."""
-  config: ai.AIModelConfig = ai_test.MakeConfig(vision=False)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(vision=False)
   llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
   llm_mock.create_chat_completion.return_value = _MakeResponse('answer text')
   loaded: ai.LoadedModel = (config, {}, llm_mock)
@@ -496,7 +495,7 @@ def testLlamaCallReturnsParsedPydanticModel(tmp_path: pathlib.Path) -> None:
     label: str
     score: float
 
-  config: ai.AIModelConfig = ai_test.MakeConfig(vision=False)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(vision=False)
   llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
   llm_mock.create_chat_completion.return_value = _MakeResponse('{"label":"cat","score":0.9}')
   loaded: ai.LoadedModel = (config, {}, llm_mock)
@@ -511,7 +510,7 @@ def testLlamaCallReturnsParsedPydanticModel(tmp_path: pathlib.Path) -> None:
 
 def testLlamaCallRaisesOnValueError(tmp_path: pathlib.Path) -> None:
   """_Call wraps ValueError from llm.create_chat_completion into Error."""
-  config: ai.AIModelConfig = ai_test.MakeConfig(vision=False)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(vision=False)
   llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
   llm_mock.create_chat_completion.side_effect = ValueError('bad grammar')
   loaded: ai.LoadedModel = (config, {}, llm_mock)
@@ -523,7 +522,7 @@ def testLlamaCallRaisesOnValueError(tmp_path: pathlib.Path) -> None:
 
 def testLlamaCallRaisesOnRuntimeError(tmp_path: pathlib.Path) -> None:
   """_Call wraps RuntimeError from llm.create_chat_completion into Error."""
-  config: ai.AIModelConfig = ai_test.MakeConfig(vision=False)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(vision=False)
   llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
   llm_mock.create_chat_completion.side_effect = RuntimeError('segfault')
   loaded: ai.LoadedModel = (config, {}, llm_mock)
@@ -540,7 +539,7 @@ def testLlamaCallRaisesOnRuntimeError(tmp_path: pathlib.Path) -> None:
 
 def testLlamaCallWithImageBytes(tmp_path: pathlib.Path) -> None:
   """_Call handles image bytes by converting them and adding to messages."""
-  config: ai.AIModelConfig = ai_test.MakeConfig(vision=True)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(vision=True)
   llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
   llm_mock.create_chat_completion.return_value = _MakeResponse('has cat')
   loaded: ai.LoadedModel = (config, {}, llm_mock)
@@ -564,7 +563,7 @@ def testLlamaCallWithImageBytes(tmp_path: pathlib.Path) -> None:
 
 def testLlamaCallWithImagePath(tmp_path: pathlib.Path) -> None:
   """_Call handles image pathlib.Path by reading bytes before converting."""
-  config: ai.AIModelConfig = ai_test.MakeConfig(vision=True)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(vision=True)
   llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
   llm_mock.create_chat_completion.return_value = _MakeResponse('path result')
   loaded: ai.LoadedModel = (config, {}, llm_mock)
@@ -583,7 +582,7 @@ def testLlamaCallWithImagePath(tmp_path: pathlib.Path) -> None:
 
 def testLlamaCallRaisesOnVisionWithoutCapability(tmp_path: pathlib.Path) -> None:
   """_Call raises Error when images provided but model lacks vision capability."""
-  config: ai.AIModelConfig = ai_test.MakeConfig(vision=False)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(vision=False)
   llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
   loaded: ai.LoadedModel = (config, {}, llm_mock)
   w = llama.LlamaWorker(tmp_path)
@@ -598,7 +597,7 @@ def testLlamaCallRaisesOnVisionWithoutCapability(tmp_path: pathlib.Path) -> None
 
 def testLlamaCallSuppressesOutputWhenNotVerbose(tmp_path: pathlib.Path) -> None:
   """_Call uses _SuppressNativeOutput(True) when verbose=False."""
-  config: ai.AIModelConfig = ai_test.MakeConfig(vision=False)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(vision=False)
   llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
   llm_mock.create_chat_completion.return_value = _MakeResponse('quiet')
   loaded: ai.LoadedModel = (config, {}, llm_mock)
@@ -619,7 +618,7 @@ def testLlamaWorkerLoadModelAndModelCall(tmp_path: pathlib.Path) -> None:
   """LoadModel then ModelCall round-trip works correctly."""
   gguf_file: pathlib.Path = tmp_path / 'mymodel.gguf'
   gguf_file.write_bytes(b'x' * 100)
-  config: ai.AIModelConfig = ai_test.MakeConfig(model_id='mymodel', model_path=gguf_file)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(model_id='mymodel', model_path=gguf_file)
   mock_llama_inst = mock.MagicMock(spec=llama_cpp.Llama)
   mock_llama_inst.metadata = {}
   mock_llama_inst.create_chat_completion.return_value = _MakeResponse('e2e result')
