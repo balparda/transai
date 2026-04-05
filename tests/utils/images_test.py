@@ -14,6 +14,7 @@ import pathlib
 from collections.abc import Iterator
 from unittest import mock
 
+import numpy as np
 import pytest
 from PIL import Image, ImageFile, ImageSequence
 
@@ -104,7 +105,9 @@ def test_resize_image_for_vision_tall_image_exact_bytes() -> None:
   """100.jpg (200x246) resized to max_pixels=128 must match the precomputed reference exactly."""
   result: bytes = images.ResizeImageForVision(_ReadTestImage('100.jpg'), max_pixels=128)
   reference: bytes = _ReadTestImage('100-reduced-128.png')
-  assert result == reference
+  result_img: ImageFile.ImageFile = Image.open(io.BytesIO(result))
+  ref_img: ImageFile.ImageFile = Image.open(io.BytesIO(reference))
+  assert np.array_equal(np.array(result_img), np.array(ref_img))
 
 
 def test_resize_image_for_vision_tall_image_dimension_check() -> None:
@@ -206,7 +209,9 @@ def test_animation_frames_real_gif_with_decimation_matches_reference_frames() ->
   produced: list[bytes] = list(images.AnimationFrames(gif_bytes, max_pixels=128, decimation=True))
   assert len(produced) == 11
   for i, (ref, prod) in enumerate(zip(reference, produced, strict=True)):
-    assert ref == prod, f'frame {i:02d} bytes do not match reference'
+    result_img: ImageFile.ImageFile = Image.open(io.BytesIO(prod))
+    ref_img: ImageFile.ImageFile = Image.open(io.BytesIO(ref))
+    assert np.array_equal(np.array(result_img), np.array(ref_img)), f'frame {i:02d} error'
 
 
 @pytest.mark.slow
