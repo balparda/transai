@@ -15,6 +15,7 @@ import llama_cpp
 import lmstudio
 import pydantic
 import pytest
+from transcrypto.core import modmath
 from transcrypto.utils import saferandom
 
 from transai.core import ai
@@ -79,6 +80,7 @@ def testConstants() -> None:
   """Verify constants have sensible values."""
   assert 0.0 < ai.DEFAULT_GPU_RATIO <= 1.0
   assert 0.0 <= ai.DEFAULT_TEMPERATURE <= ai.MAX_TEMPERATURE
+  assert modmath.IsPrime(ai.AI_MAX_SEED)
 
 
 # ---------------------------------------------------------------------------

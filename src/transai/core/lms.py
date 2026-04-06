@@ -9,6 +9,8 @@ from typing import cast
 
 import lmstudio
 import pydantic
+from transcrypto.core import hashes
+from transcrypto.utils import base
 
 from transai.core import ai
 
@@ -101,6 +103,7 @@ class LMStudioWorker(ai.AIWorker):
       # This will include both the prompts and the responses.
       contextLength=config['context'],
       # Random seed value for model initialization to ensure reproducible outputs.
+      # ATTENTION: my tests have shown that the seed value does NOT guarantee reproducibility in LMS
       seed=config['seed'],
       # Attempts to use memory-mapped (mmap) file access when loading the model.
       # Memory mapping can improve initial load times by mapping model files directly from
@@ -139,6 +142,7 @@ class LMStudioWorker(ai.AIWorker):
     system_prompt: str,
     user_prompt: str,
     output_format: type[T],
+    call_seed: int,
     /,
     *,
     images: list[ai.AIImageInput] | None = None,
@@ -151,6 +155,7 @@ class LMStudioWorker(ai.AIWorker):
       user_prompt: the user prompt containing the actual query or request for the model
       output_format: optional pydantic model class or `str` to parse the output into;
           if not given, the raw string output from the model will be returned
+      call_seed: the pre-computed seed to use for this call, derived from the model's seed state
       images (default=None): optional list of images to send as input, either as bytes or file
           paths; only supported if the model has vision capability
 
@@ -161,17 +166,16 @@ class LMStudioWorker(ai.AIWorker):
       Error: if the model does not support the given inputs, or if there is any error calling
 
     """
-    model_config: ai.AIModelConfig = model[0]
-    lm_model: lmstudio.LLM = cast('lmstudio.LLM', model[2])
-    model_id: str = model_config['model_id']
+    if call_seed <= 1:  # for safety, but should never happen
+      raise Error('call_seed must be a positive integer')
     config = lmstudio.LlmPredictionConfigDict(
       # Number of tokens to predict at most.
       # If set to false, the model will predict as many tokens as it wants.
-      maxTokens=model_config['context'],
+      maxTokens=model.config['context'],
       # The temperature parameter for the prediction model. A higher value makes the predictions
       # more random, while a lower value makes the predictions more deterministic.
       # The value should be between 0 and 1.
-      temperature=model_config['temperature'],
+      temperature=model.config['temperature'],
     )
     chat = lmstudio.Chat(system_prompt)
     chat.add_user_message(
@@ -181,13 +185,13 @@ class LMStudioWorker(ai.AIWorker):
     # call the model
     logging.debug(f'Calling AI with config {config!r} and chat {chat!r}')
     try:
-      result: lmstudio.PredictionResult = lm_model.respond(
+      result: lmstudio.PredictionResult = cast('lmstudio.LLM', model.model).respond(
         chat,
         config=config,
         response_format=None if output_format is str else output_format,  # type: ignore[arg-type]
       )
     except lmstudio.LMStudioServerError as err:
-      raise Error(f'Error calling model {model_id!r}: {err}') from err
+      raise Error(f'Error calling model {model.model_id!r}: {err}') from err
     # log and check results
     logging.debug('Predicted tokens: %d', result.stats.predicted_tokens_count)
     logging.debug('Time to first token (seconds): %f', result.stats.time_to_first_token_sec)
@@ -234,4 +238,12 @@ def _ExtractModelInfo(model: lmstudio.LLM, config: ai.AIModelConfig, /) -> ai.Lo
       'context': n_ctx,
     }
   )
-  return (new_config, cast('ai.AIModelMetadata', model_info.to_dict()), model)
+  if not new_config['seed'] or new_config['seed'] <= 1:  # for safety, but should never happen
+    raise Error('Loaded LMStudio model config must have a seed')
+  return ai.LoadedModel(
+    model_id=model_key,
+    seed_state=hashes.Hash256(base.IntToBytes(new_config['seed'])),
+    config=new_config,
+    metadata=cast('ai.AIModelMetadata', model_info.to_dict()),
+    model=model,
+  )

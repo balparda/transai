@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 import abc
+import dataclasses
+import functools
 import logging
 import pathlib
 from typing import Self, TypedDict, final
@@ -12,6 +14,7 @@ from typing import Self, TypedDict, final
 import llama_cpp
 import lmstudio
 import pydantic
+from transcrypto.core import hashes, modmath
 from transcrypto.utils import base, saferandom
 
 from transai import __version__
@@ -23,7 +26,8 @@ AI_CONTEXT_LENGTH = 32 * 1024  # 32k tokens, should be enough for the image and 
 AI_MAX_CONTEXT = 2**24  # 16 million tokens, just a sanity check upper bound for validation
 DEFAULT_VISION_MODEL = 'qwen3-vl-32b-instruct@Q8_0'
 DEFAULT_TEXT_MODEL = 'qwen3-8b@Q8_0'
-AI_MAX_SEED = 2**31 - 1
+AI_MAX_SEED = 2**31 - 1  # another good thing is that this is prime!
+assert modmath.IsPrime(AI_MAX_SEED), 'AI_MAX_SEED prime for better seed distribution and properties'  # noqa: S101
 DEFAULT_GPU_RATIO = 0.8
 DEFAULT_TEMPERATURE = 0.15
 MAX_TEMPERATURE = 2.0
@@ -55,10 +59,42 @@ class AIModelConfig(TypedDict):
   kv_cache: int | None  # GGML type for KV-cache keys/values
 
 
+@functools.total_ordering
+@dataclasses.dataclass(kw_only=True, slots=True)
+class LoadedModel:
+  """Loaded AI model, with its configuration and metadata.
+
+  Attributes:
+    model_id: the standardized model key (not the path) of the loaded model
+    seed_state: opaque bytes hash SHA256 is the state; will change on every call; 32 bytes long
+    config: the AIModelConfig used for loading the model, with all fields filled in and standardized
+    metadata: metadata about the loaded model (e.g. actual model path, CLIP path, etc)
+    model: the actual loaded model object (e.g. llama_cpp.Llama or lmstudio.LLM instance)
+
+  """
+
+  model_id: str
+  seed_state: bytes  # 32 bytes
+  config: AIModelConfig
+  metadata: AIModelMetadata
+  model: _SupportedModelObject
+
+  def __lt__(self, other: LoadedModel) -> bool:
+    """Less than. Makes sortable (b/c base class already defines __eq__).
+
+    Args:
+      other (LoadedModel): other to compare against
+
+    Returns:
+      bool: True if this LoadedModel is less than the other, False otherwise.
+
+    """
+    return self.model_id < other.model_id
+
+
 type AIModelMetadata = base.JSONDict  # metadata about the loaded model
 type AIImageInput = bytes | pathlib.Path | str
 type _SupportedModelObject = llama_cpp.Llama | lmstudio.LLM  # supported backends actual model type
-type LoadedModel = tuple[AIModelConfig, AIModelMetadata, _SupportedModelObject]
 type _LoadedModelsDict = dict[str, LoadedModel]
 _LLM_REQUIRING_CLOSE_METHOD: tuple[type[_SupportedModelObject], ...] = (llama_cpp.Llama,)
 
@@ -123,10 +159,10 @@ class AIWorker(abc.ABC):
   def Close(self) -> None:
     """Close any started sessions."""
     logging.info('Closing model objects')
-    for model_id, (_, _, model) in self._loaded_models.items():
-      if isinstance(model, _LLM_REQUIRING_CLOSE_METHOD):
+    for model_id, loaded in self._loaded_models.items():
+      if isinstance(loaded.model, _LLM_REQUIRING_CLOSE_METHOD):
         logging.info(f'Releasing model {model_id!r}')
-        model.close()  # type: ignore[union-attr]
+        loaded.model.close()  # type: ignore[union-attr]
     self._loaded_models.clear()
 
   @final
@@ -139,10 +175,21 @@ class AIWorker(abc.ABC):
     Args:
       model: the loaded model tuple to register
 
+    Raises:
+      Error: on error
+
     """
-    config: AIModelConfig = self._ConfigSeed(model[0])
-    self._loaded_models[config['model_id']] = (config, model[1].copy(), model[2])
-    logging.info(f'Registered model {config["model_id"]!r}: {model[0]!r} / {model[1]!r}')
+    config: AIModelConfig = self._ConfigSeed(model.config)
+    if not config['seed'] or config['seed'] <= 1:  # for safety, but should never happen
+      raise Error('Loaded model config must have a seed to be registered')
+    self._loaded_models[config['model_id']] = LoadedModel(
+      model_id=config['model_id'],
+      seed_state=hashes.Hash256(base.IntToBytes(config['seed'])),
+      config=config,
+      metadata=model.metadata.copy(),
+      model=model.model,
+    )
+    logging.info(f'Registered model {config["model_id"]!r}: {config!r} / {model.metadata!r}')
 
   @final
   def LoadModel(
@@ -164,15 +211,23 @@ class AIWorker(abc.ABC):
         ModelMetadata: metadata about the loaded model,
       )
 
+    Raises:
+      Error: on error
+
     """
     if not force and config['seed'] is not None:
       force = True  # if a seed is specified, we have to force reload to apply it
       logging.info(f'Seed {config["seed"]} specified in config, forcing model reload to apply')
     config = self._ConfigSeed(config)  # standardize 'model_id' and 'seed'
+    if not config['seed'] or config['seed'] <= 1:  # for safety, but should never happen
+      raise Error('Config must have a seed to be loaded')
     # if the exact model is already loaded and we're not forcing, return it
     if not force and config['model_id'] in self._loaded_models:
       logging.info(f'Model {config["model_id"]!r} already loaded, returning existing instance')
-      return self._loaded_models[config['model_id']][0], self._loaded_models[config['model_id']][1]
+      return (
+        self._loaded_models[config['model_id']].config,
+        self._loaded_models[config['model_id']].metadata,
+      )
     # if ignoring quantization and the generic version of the model is already loaded, return it
     if (
       not force
@@ -180,17 +235,15 @@ class AIWorker(abc.ABC):
       and (reduced := config['model_id'].rsplit('@', 1)[0]) in self._loaded_models
     ):
       logging.info(f'Model {config["model_id"]!r} found as generic quantized version')
-      return self._loaded_models[reduced][0], self._loaded_models[reduced][1]
+      return (
+        self._loaded_models[reduced].config,
+        self._loaded_models[reduced].metadata,
+      )
     # otherwise, we need to load the model which will be done by the subclass implementations
     new_model: LoadedModel = self._LoadNew(config)
-    config = new_model[0]
-    self._loaded_models[config['model_id']] = (
-      new_model[0].copy(),
-      new_model[1].copy(),
-      new_model[2],
-    )
-    logging.info(f'Loaded model {config["model_id"]!r}: {new_model[0]!r} / {new_model[1]!r}')
-    return (new_model[0], new_model[1])
+    self._loaded_models[new_model.model_id] = new_model
+    logging.info(f'Loaded {new_model.model_id!r}: {new_model.config!r} / {new_model.metadata!r}')
+    return (new_model.config, new_model.metadata)
 
   @abc.abstractmethod
   def _LoadNew(self, config: AIModelConfig, /) -> LoadedModel:
@@ -285,9 +338,14 @@ class AIWorker(abc.ABC):
     """
     if model_id not in self._loaded_models:
       raise Error(f'Model {model_id!r} not loaded; call LoadModel() first')
-    return self._Call(
-      self._loaded_models[model_id], system_prompt, user_prompt, output_format, images=images
-    )
+    # get loaded model and iterate seed state
+    loaded: LoadedModel = self._loaded_models[model_id]
+    new_seed: int = 0
+    while new_seed <= 1:  # just for safety, but should never (rarely) happen
+      loaded.seed_state = hashes.Hash256(loaded.seed_state)  # S <- SHA256(S)
+      new_seed = base.BytesToInt(loaded.seed_state) % AI_MAX_SEED  # (AI_MAX_SEED is prime)
+    logging.info(f'Calling {model_id!r} @{new_seed} ({loaded.seed_state.hex()})')
+    return self._Call(loaded, system_prompt, user_prompt, output_format, new_seed, images=images)
 
   @abc.abstractmethod
   def _Call[T: pydantic.BaseModel | str](
@@ -296,6 +354,7 @@ class AIWorker(abc.ABC):
     system_prompt: str,
     user_prompt: str,
     output_format: type[T],
+    call_seed: int,
     /,
     *,
     images: list[AIImageInput] | None = None,
@@ -308,6 +367,7 @@ class AIWorker(abc.ABC):
       user_prompt: the user prompt containing the actual query or request for the model
       output_format: optional pydantic model class or `str` to parse the output into;
           if not given, the raw string output from the model will be returned
+      call_seed: the pre-computed seed to use for this call, derived from the model's seed state
       images (default=None): optional list of images to send as input, either as bytes or file
           paths; only supported if the model has vision capability
 

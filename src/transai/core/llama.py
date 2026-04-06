@@ -16,6 +16,7 @@ from typing import Any, cast
 import llama_cpp
 import pydantic
 from llama_cpp import llama_chat_format, llama_speculative, llama_types
+from transcrypto.core import hashes
 from transcrypto.utils import base
 
 from transai.core import ai
@@ -159,7 +160,8 @@ class LlamaWorker(ai.AIWorker):
     with _SuppressNativeOutput(not self._verbose):
       llm: llama_cpp.Llama = llama_cpp.Llama(
         model_path=str(gguf_path),
-        seed=config['seed'] or -1,
+        # my tests show this key does not matter if you set the query key
+        seed=config['seed'] or -1,  # should never be None here, but for safety
         n_ctx=config['context'],
         temperature=config['temperature'],
         n_gpu_layers=config['gpu_layers'],
@@ -188,7 +190,15 @@ class LlamaWorker(ai.AIWorker):
         'reasoning': has_reasoning,
       }
     )
-    return (new_config, metadata, llm)
+    if not new_config['seed'] or new_config['seed'] <= 1:  # for safety, but should never happen
+      raise Error('Loaded llama.cpp model config must have a seed')
+    return ai.LoadedModel(
+      model_id=new_config['model_id'],
+      seed_state=hashes.Hash256(base.IntToBytes(new_config['seed'])),
+      config=new_config,
+      metadata=metadata,
+      model=llm,
+    )
 
   def _Call[T: pydantic.BaseModel | str](
     self,
@@ -196,6 +206,7 @@ class LlamaWorker(ai.AIWorker):
     system_prompt: str,
     user_prompt: str,
     output_format: type[T],
+    call_seed: int,
     /,
     *,
     images: list[ai.AIImageInput] | None = None,
@@ -208,6 +219,7 @@ class LlamaWorker(ai.AIWorker):
       user_prompt: the user prompt containing the actual query or request for the model
       output_format: optional pydantic model class or `str` to parse the output into;
           if not given, the raw string output from the model will be returned
+      call_seed: the pre-computed seed to use for this call, derived from the model's seed state
       images (default=None): optional list of images to send as input, either as bytes or file
           paths; only supported if the model has vision capability
 
@@ -218,15 +230,14 @@ class LlamaWorker(ai.AIWorker):
       Error: if the model does not support the given inputs, or if there is any error calling
 
     """
-    model_config: ai.AIModelConfig = model[0]
-    llm: llama_cpp.Llama = cast('llama_cpp.Llama', model[2])
-    model_id: str = model_config['model_id']
+    if call_seed <= 1:  # for safety, but should never happen
+      raise Error('call_seed must be a positive integer')
     # build messages, start with system prompt
     messages: list[dict[str, Any]] = [{'role': 'system', 'content': system_prompt}]
     if images:
       # vision request: multi-modal user message
-      if not model_config['vision']:
-        raise Error(f'Model {model_id!r} does not support vision but images were provided')
+      if not model.config['vision']:
+        raise Error(f'Model {model.model_id!r} does not support vision but images were provided')
       # add the text part of the user message
       parts: list[dict[str, Any]] = [{'type': 'text', 'text': user_prompt}]
       # for llama.cpp, we need to convert images to data URIs and include them in the message
@@ -246,17 +257,18 @@ class LlamaWorker(ai.AIWorker):
       # text-only user message, so add the rest
       messages.append({'role': 'user', 'content': user_prompt})
     # call the model
-    logging.debug(f'Calling llama.cpp model {model_id!r} ({len(messages)} messages)')
+    logging.debug(f'Calling llama.cpp model {model.model_id!r} ({len(messages)} messages)')
     try:
+      result: llama_types.CreateChatCompletionResponse
       if output_format is str:
         # plain text completion
         with _SuppressNativeOutput(not self._verbose):
-          result: llama_types.CreateChatCompletionResponse = llm.create_chat_completion(  # type: ignore[assignment]
+          result = cast('llama_cpp.Llama', model.model).create_chat_completion(  # type: ignore[assignment]
             messages=messages,  # type: ignore[arg-type]
             response_format={'type': 'text'},
-            max_tokens=model_config['context'],
-            temperature=model_config['temperature'],
-            seed=model_config['seed'],
+            max_tokens=model.config['context'],
+            temperature=model.config['temperature'],
+            seed=call_seed,  # my tests have shown this is the only seed that matters
           )
         return _ExtractContent(result)  # type: ignore[return-value]
       # structured JSON completion via pydantic schema
@@ -264,15 +276,15 @@ class LlamaWorker(ai.AIWorker):
       schema.pop('$defs', None)  # pyright: ignore[reportUnknownMemberType]
       schema.pop('title', None)  # pyright: ignore[reportUnknownMemberType]
       with _SuppressNativeOutput(not self._verbose):
-        result = llm.create_chat_completion(  # type: ignore[assignment]
+        result = cast('llama_cpp.Llama', model.model).create_chat_completion(  # type: ignore[assignment]
           messages=messages,  # type: ignore[arg-type]
           response_format={'type': 'json_object', 'schema': schema},
-          max_tokens=model_config['context'],
-          temperature=model_config['temperature'],
-          seed=model_config['seed'],
+          max_tokens=model.config['context'],
+          temperature=model.config['temperature'],
+          seed=call_seed,  # my tests have shown this is the only seed that matters
         )
     except (ValueError, RuntimeError) as err:
-      raise Error(f'Error calling model {model_id!r}: {err}') from err
+      raise Error(f'Error calling model {model.model_id!r}: {err}') from err
     content: str = _ExtractContent(result)
     parsed: pydantic.BaseModel = output_format.model_validate(json.loads(content))  # type: ignore[attr-defined]
     return parsed  # type: ignore[return-value]
