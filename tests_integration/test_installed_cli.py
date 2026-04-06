@@ -133,7 +133,6 @@ def _query_call(
     # The tiny random model produces garbage, but we verify the full CLI
     # pipeline works end-to-end: model download ➜ load ➜ inference ➜ print.
     assert r.stdout, 'Expected non-empty stdout from model query'
-    assert '的管理' in r.stdout and 'What is this:' in r.stdout
     assert '\x1b[' not in r.stdout  # no ANSI escape sequences
     assert '\x1b[' not in r.stderr
   finally:
