@@ -46,6 +46,7 @@ class _ConcreteWorker(ai.AIWorker):
     _system_prompt: str,
     _user_prompt: str,
     _output_format: type[T],
+    _call_seed: int,
     /,
     *,
     images: list[ai.AIImageInput] | None = None,  # noqa: ARG002
@@ -61,14 +62,20 @@ def _MakeLlamaModel(config: ai.AIModelConfig | None = None) -> ai.LoadedModel:
     config: optional AIModelConfig to use for the model
 
   Returns:
-    a LoadedModel tuple with the given config (or a default valid one if None),
-    empty metadata, and a MagicMock spec'd as llama_cpp.Llama
+    a LoadedModel dataclass with the given config (or a default valid one if None),
+    fixed metadata, and a MagicMock spec'd as llama_cpp.Llama
 
   """
   if config is None:
-    config = ai.MakeAIModelConfig()
+    config = ai.MakeAIModelConfig(seed=5000)
   llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
-  return (config, {'key': 'val'}, llm_mock)
+  return ai.LoadedModel(
+    model_id=config['model_id'],
+    seed_state=bytes(32),
+    config=config,
+    metadata={'key': 'val'},
+    model=llm_mock,
+  )
 
 
 # ---------------------------------------------------------------------------
@@ -120,8 +127,14 @@ def testCloseCallsCloseOnLlamaModels() -> None:
   """Close() must call .close() on llama_cpp.Llama instances."""
   w = _ConcreteWorker()
   llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
-  config: ai.AIModelConfig = ai.MakeAIModelConfig()
-  w._loaded_models[ai.DEFAULT_TEXT_MODEL] = (config, {}, llm_mock)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(seed=5000)
+  w._loaded_models[ai.DEFAULT_TEXT_MODEL] = ai.LoadedModel(
+    model_id=ai.DEFAULT_TEXT_MODEL,
+    seed_state=bytes(32),
+    config=config,
+    metadata={},
+    model=llm_mock,
+  )
   w.Close()
   llm_mock.close.assert_called_once()
   assert not w._loaded_models  # dict cleared
@@ -133,8 +146,14 @@ def testCloseDoesNotCallCloseOnLMStudioModels() -> None:
   # Use a plain MagicMock instead of spec=lmstudio.LLM to avoid AttributeError
   # if lmstudio.LLM doesn't expose 'close' in its public interface
   lms_mock = mock.MagicMock()
-  config: ai.AIModelConfig = ai.MakeAIModelConfig()
-  w._loaded_models[ai.DEFAULT_TEXT_MODEL] = (config, {}, lms_mock)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(seed=5000)
+  w._loaded_models[ai.DEFAULT_TEXT_MODEL] = ai.LoadedModel(
+    model_id=ai.DEFAULT_TEXT_MODEL,
+    seed_state=bytes(32),
+    config=config,
+    metadata={},
+    model=lms_mock,
+  )
   w.Close()
   # The mock has close() but the code should NOT call it since lmstudio.LLM
   # is not in _LLM_REQUIRING_CLOSE_METHOD
@@ -146,9 +165,21 @@ def testCloseClearsModelsDict() -> None:
   """Close() must empty _loaded_models even when no models need close()."""
   w = _ConcreteWorker()
   lms_mock = mock.MagicMock(spec=lmstudio.LLM)
-  config: ai.AIModelConfig = ai.MakeAIModelConfig()
-  w._loaded_models['m1'] = (config, {}, lms_mock)
-  w._loaded_models['m2'] = (config, {}, lms_mock)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(seed=5000)
+  w._loaded_models['m1'] = ai.LoadedModel(
+    model_id='m1',
+    seed_state=bytes(32),
+    config=config,
+    metadata={},
+    model=lms_mock,
+  )
+  w._loaded_models['m2'] = ai.LoadedModel(
+    model_id='m2',
+    seed_state=bytes(32),
+    config=config,
+    metadata={},
+    model=lms_mock,
+  )
   w.Close()
   assert w._loaded_models == {}
 
@@ -240,10 +271,19 @@ def testConfigSeedRaisesOnSeedOutOfRange() -> None:
 
 
 def testConfigSeedRaisesOnSeedNegative() -> None:
-  """_ConfigSeed must raise Error on negative seed."""
+  """_ConfigSeed must raise Error on negative seed (seed=-1 is reserved as 'no seed')."""
   w = _ConcreteWorker()
   with pytest.raises(ai.Error, match='seed'):
-    w._ConfigSeed(ai.MakeAIModelConfig(seed=-1))
+    w._ConfigSeed(ai.MakeAIModelConfig(seed=-2))
+
+
+def testConfigSeedTreatsMinusOneSeedAsNone() -> None:
+  """_ConfigSeed treats seed=-1 (reserved marker) as None and generates a random seed."""
+  w = _ConcreteWorker()
+  with mock.patch.object(saferandom, 'RandBits', return_value=12345) as rand_mock:
+    result: ai.AIModelConfig = w._ConfigSeed(ai.MakeAIModelConfig(seed=-1))
+  rand_mock.assert_called_once_with(31)
+  assert result['seed'] == 12345
 
 
 def testConfigSeedRaisesOnSeedTooLarge() -> None:
@@ -312,15 +352,113 @@ def testLoadModelStoresAndReturnsConfig() -> None:
 
 
 def testLoadModelStoresIsolatedCopies() -> None:
-  """LoadModel() must store copies so mutations of the original don't affect stored state."""
+  """LoadModel() must return copies so mutations don't affect stored state."""
   w = _ConcreteWorker()
   loaded: ai.LoadedModel = _MakeLlamaModel()
   w._load_return = loaded
   cfg, _meta = w.LoadModel(ai.MakeAIModelConfig())
-  stored_cfg: ai.AIModelConfig = w._loaded_models[ai.DEFAULT_TEXT_MODEL][0]
-  # They should be equal content but distinct objects
+  stored_cfg: ai.AIModelConfig = w._loaded_models[ai.DEFAULT_TEXT_MODEL].config
+  # Returned config is a copy (not the same object) but equal in content
   assert cfg == stored_cfg
   assert cfg is not stored_cfg
+
+
+def testLoadModelForcesReloadWhenSeedSpecified() -> None:
+  """LoadModel sets force=True when config has an explicit seed (lines 219-220)."""
+  w = _ConcreteWorker()
+  w._load_return = _MakeLlamaModel()
+  # Explicit non-None seed triggers force=True at the start of LoadModel
+  cfg, _ = w.LoadModel(ai.MakeAIModelConfig(seed=1000))
+  assert cfg is not None
+
+
+def testLoadModelRaisesWhenConfigSeedReturnsBadSeed() -> None:
+  """LoadModel raises Error when _ConfigSeed returns a config with bad seed (safety guard)."""
+  w = _ConcreteWorker()
+  bad_config: ai.AIModelConfig = ai.MakeAIModelConfig(seed=5000)
+  bad_config.update({'seed': 0})  # type: ignore[typeddict-item]
+  with (
+    mock.patch.object(w, '_ConfigSeed', return_value=bad_config),
+    pytest.raises(ai.Error, match='seed to be loaded'),
+  ):
+    w.LoadModel(ai.MakeAIModelConfig())
+
+
+def testLoadModelReturnsCachedForExistingModel() -> None:
+  """LoadModel returns cached (config, metadata) copies on repeated calls for same model."""
+  w = _ConcreteWorker()
+  # Use an explicit lowercase model_id so the _ConfigSeed normalization matches the stored key
+  model_config: ai.AIModelConfig = ai.MakeAIModelConfig(model_id='test-model', seed=5000)
+  loaded = ai.LoadedModel(
+    model_id='test-model',
+    seed_state=bytes(32),
+    config=model_config,
+    metadata={'info': 'val'},
+    model=mock.MagicMock(spec=llama_cpp.Llama),
+  )
+  w._load_return = loaded
+  # First load stores the model
+  cfg1, meta1 = w.LoadModel(ai.MakeAIModelConfig(model_id='test-model'))
+  # Second load must return cached, not call _LoadNew again
+  w._load_return = None  # _LoadNew would raise if called
+  cfg2, meta2 = w.LoadModel(ai.MakeAIModelConfig(model_id='test-model'))
+  assert cfg1 == cfg2
+  assert meta1 == meta2
+
+
+def testLoadModelReturnsCachedForQuantizedVariant() -> None:
+  """LoadModel returns cached base model when a quantized variant is requested."""
+  w = _ConcreteWorker()
+  # Load the base model (no quant suffix)
+  base_config: ai.AIModelConfig = ai.MakeAIModelConfig(model_id='my-model', seed=5000)
+  loaded = ai.LoadedModel(
+    model_id='my-model',
+    seed_state=bytes(32),
+    config=base_config,
+    metadata={},
+    model=mock.MagicMock(spec=llama_cpp.Llama),
+  )
+  w._load_return = loaded
+  w.LoadModel(ai.MakeAIModelConfig(model_id='my-model'))
+  # Requesting a quantized variant should find the already-loaded base via ignore_quant
+  w._load_return = None  # _LoadNew would raise if called
+  cfg, _ = w.LoadModel(ai.MakeAIModelConfig(model_id='my-model@q8_0'))
+  assert cfg['model_id'] == 'my-model'
+
+
+# ---------------------------------------------------------------------------
+# AIWorker._RegisterModel
+# ---------------------------------------------------------------------------
+
+
+def testRegisterModelStoresModel() -> None:
+  """_RegisterModel stores a LoadedModel in _loaded_models with normalized model_id."""
+  w = _ConcreteWorker()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(model_id='reg-model', seed=5000)
+  model = ai.LoadedModel(
+    model_id='reg-model',
+    seed_state=bytes(32),
+    config=config,
+    metadata={'k': 'v'},
+    model=mock.MagicMock(spec=llama_cpp.Llama),
+  )
+  w._RegisterModel(model)
+  assert 'reg-model' in w._loaded_models
+  assert w._loaded_models['reg-model'].config['model_id'] == 'reg-model'
+  assert w._loaded_models['reg-model'].metadata == {'k': 'v'}
+
+
+def testRegisterModelRaisesOnBadSeed() -> None:
+  """_RegisterModel raises Error when _ConfigSeed returns a config with bad seed (safety guard)."""
+  w = _ConcreteWorker()
+  model: ai.LoadedModel = _MakeLlamaModel()
+  bad_config: ai.AIModelConfig = ai.MakeAIModelConfig(seed=5000)
+  bad_config.update({'seed': 0})  # type: ignore[typeddict-item]
+  with (
+    mock.patch.object(w, '_ConfigSeed', return_value=bad_config),
+    pytest.raises(ai.Error, match='seed to be registered'),
+  ):
+    w._RegisterModel(model)
 
 
 # ---------------------------------------------------------------------------

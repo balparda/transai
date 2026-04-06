@@ -135,8 +135,14 @@ def testLMSWorkerCloseAlsoClearsLoadedModels() -> None:
   """Close() must clear _loaded_models via super().Close()."""
   worker, _client = _MakeLMSWorker()
   lm_mock = mock.MagicMock(spec=lmstudio.LLM)
-  config: ai.AIModelConfig = ai.MakeAIModelConfig()
-  worker._loaded_models['test-model'] = (config, {}, lm_mock)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(seed=5000)
+  worker._loaded_models['test-model'] = ai.LoadedModel(
+    model_id='test-model',
+    seed_state=bytes(32),
+    config=config,
+    metadata={},
+    model=lm_mock,
+  )
   worker.Close()
   assert worker._loaded_models == {}
 
@@ -171,46 +177,50 @@ def _MakeModelInfo(
 def testLMSWorkerLoadSuccessBasic() -> None:
   """_Load succeeds for a basic text model."""
   worker, client_mock = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai.MakeAIModelConfig(context=1024)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(model_id='test-model', context=1024, seed=5000)
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   model_info: mock.MagicMock = _MakeModelInfo()
   lm_model_mock.get_info.return_value = model_info
   lm_model_mock.get_context_length.return_value = 2048
   client_mock.llm.load_new_instance.return_value = lm_model_mock
   with mock.patch('lmstudio.LlmLoadModelConfigDict', return_value={}):
-    loaded_config, metadata, model = worker._LoadNew(config)
-  assert loaded_config['model_id'] == 'test-model'
-  assert model is lm_model_mock
-  assert metadata == {'model_key': 'test-model', 'vision': False, 'tooling': False}
+    result: ai.LoadedModel = worker._LoadNew(config)
+  assert result.config['model_id'] == 'test-model'
+  assert result.model is lm_model_mock
+  assert result.metadata == {'model_key': 'test-model', 'vision': False, 'tooling': False}
 
 
 def testLMSWorkerLoadUpdatesModelIdFromInfo() -> None:
-  """_Load replaces model_id with the key returned by model_info.model_key."""
+  """_Load preserves the model_id from config as the canonical model identifier."""
   worker, client_mock = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai.MakeAIModelConfig(model_id='short-name', context=1024)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(
+    model_id='canonical/model-key', context=1024, seed=5000
+  )
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   model_info: mock.MagicMock = _MakeModelInfo(model_key='canonical/model-key')
   lm_model_mock.get_info.return_value = model_info
   lm_model_mock.get_context_length.return_value = 4096
   client_mock.llm.load_new_instance.return_value = lm_model_mock
   with mock.patch('lmstudio.LlmLoadModelConfigDict', return_value={}):
-    loaded_config, _meta, _model = worker._LoadNew(config)
-  assert loaded_config['model_id'] == 'canonical/model-key'
+    result: ai.LoadedModel = worker._LoadNew(config)
+  assert result.config['model_id'] == 'canonical/model-key'
 
 
 def testLMSWorkerLoadSetsVisionFromModelInfo() -> None:
   """_Load propagates vision and tooling from model_info into config."""
   worker, client_mock = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai.MakeAIModelConfig(vision=True, tooling=False, context=1024)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(
+    vision=True, tooling=False, context=1024, seed=5000
+  )
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   model_info: mock.MagicMock = _MakeModelInfo(vision=True, tooling=True)
   lm_model_mock.get_info.return_value = model_info
   lm_model_mock.get_context_length.return_value = 4096
   client_mock.llm.load_new_instance.return_value = lm_model_mock
   with mock.patch('lmstudio.LlmLoadModelConfigDict', return_value={}):
-    loaded_config, _meta, _model = worker._LoadNew(config)
-  assert loaded_config['vision'] is True
-  assert loaded_config['tooling'] is True
+    result: ai.LoadedModel = worker._LoadNew(config)
+  assert result.config['vision'] is True
+  assert result.config['tooling'] is True
 
 
 def testLMSWorkerLoadRaisesIfModelInfoNotLlmInstanceInfo() -> None:
@@ -293,6 +303,7 @@ def testLMSWorkerLoadWarnsOnIgnoredFields() -> None:
     gpu_layers=10,
     spec_tokens=3,
     context=1024,
+    seed=5000,
   )
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   model_info: mock.MagicMock = _MakeModelInfo()
@@ -306,6 +317,24 @@ def testLMSWorkerLoadWarnsOnIgnoredFields() -> None:
     worker._LoadNew(config)
   # model_path + kv_cache + (flash | gpu_layers | spec_tokens) = at least 3 warnings
   assert log_mock.warning.call_count >= 3
+
+
+def testLMSWorkerLoadRaisesOnMissingSeed() -> None:
+  """_LoadNew raises Error when config has no seed (safety guard, bypasses _ConfigSeed)."""
+  worker, client_mock = _MakeLMSWorker()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(model_id='test-model', context=1024)
+  # Bypass _ConfigSeed's normal validation by setting seed=None directly
+  config['seed'] = None  # type: ignore[typeddict-item]
+  lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
+  model_info: mock.MagicMock = _MakeModelInfo()
+  lm_model_mock.get_info.return_value = model_info
+  lm_model_mock.get_context_length.return_value = 2048
+  client_mock.llm.load_new_instance.return_value = lm_model_mock
+  with (
+    mock.patch('lmstudio.LlmLoadModelConfigDict', return_value={}),
+    pytest.raises(lms.Error, match='seed'),
+  ):
+    worker._LoadNew(config)
 
 
 # ---------------------------------------------------------------------------
@@ -333,21 +362,43 @@ def _MakePredictionResult(
   return result
 
 
+def testLMSCallRaisesOnInvalidCallSeed() -> None:
+  """_Call raises Error when call_seed <= 1 (safety guard)."""
+  worker, _client = _MakeLMSWorker()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(seed=5000)
+  lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
+  loaded = ai.LoadedModel(
+    model_id=config['model_id'],
+    seed_state=bytes(32),
+    config=config,
+    metadata={},
+    model=lm_model_mock,
+  )
+  with pytest.raises(lms.Error, match='call_seed must be a positive integer'):
+    worker._Call(loaded, 'system', 'user', str, 1)  # call_seed=1 is <= 1
+
+
 def testLMSCallReturnsStringContent() -> None:
   """_Call returns result.content when output_format=str."""
   worker, _client = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai.MakeAIModelConfig()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(seed=5000)
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   pred_result: mock.MagicMock = _MakePredictionResult('hello world')
   lm_model_mock.respond.return_value = pred_result
-  loaded: ai.LoadedModel = (config, {}, lm_model_mock)
+  loaded = ai.LoadedModel(
+    model_id=config['model_id'],
+    seed_state=bytes(32),
+    config=config,
+    metadata={},
+    model=lm_model_mock,
+  )
   with (
     mock.patch('lmstudio.LlmPredictionConfigDict', return_value={}),
     mock.patch('lmstudio.Chat') as chat_cls,
   ):
     chat_mock = mock.MagicMock()
     chat_cls.return_value = chat_mock
-    result: str = worker._Call(loaded, 'system', 'user question', str)
+    result: str = worker._Call(loaded, 'system', 'user question', str, 1000)
   assert result == 'hello world'
   chat_mock.add_user_message.assert_called_once_with('user question', images=None)
 
@@ -360,18 +411,24 @@ def testLMSCallReturnsParsedPydanticModel() -> None:
     confidence: float
 
   worker, _client = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai.MakeAIModelConfig()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(seed=5000)
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   parsed_data: dict[str, str | float] = {'category': 'dog', 'confidence': 0.95}
   pred_result: mock.MagicMock = _MakePredictionResult('ignored', parsed=parsed_data)
   lm_model_mock.respond.return_value = pred_result
-  loaded: ai.LoadedModel = (config, {}, lm_model_mock)
+  loaded = ai.LoadedModel(
+    model_id=config['model_id'],
+    seed_state=bytes(32),
+    config=config,
+    metadata={},
+    model=lm_model_mock,
+  )
   with (
     mock.patch('lmstudio.LlmPredictionConfigDict', return_value={}),
     mock.patch('lmstudio.Chat') as chat_cls,
   ):
     chat_cls.return_value = mock.MagicMock()
-    result = worker._Call(loaded, 'system', 'user', _MyOutput)
+    result = worker._Call(loaded, 'system', 'user', _MyOutput, 1000)
   assert isinstance(result, _MyOutput)
   assert result.category == 'dog'
   assert result.confidence == pytest.approx(0.95)  # pyright: ignore[reportUnknownMemberType]
@@ -380,44 +437,62 @@ def testLMSCallReturnsParsedPydanticModel() -> None:
 def testLMSCallRaisesOnLMStudioServerError() -> None:
   """_Call wraps lmstudio.LMStudioServerError into Error."""
   worker, _client = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai.MakeAIModelConfig()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(seed=5000)
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   lm_model_mock.respond.side_effect = lmstudio.LMStudioServerError('server error')
-  loaded: ai.LoadedModel = (config, {}, lm_model_mock)
+  loaded = ai.LoadedModel(
+    model_id=config['model_id'],
+    seed_state=bytes(32),
+    config=config,
+    metadata={},
+    model=lm_model_mock,
+  )
   with (
     mock.patch('lmstudio.LlmPredictionConfigDict', return_value={}),
     mock.patch('lmstudio.Chat') as chat_cls,
   ):
     chat_cls.return_value = mock.MagicMock()
     with pytest.raises(lms.Error, match='Error calling model'):
-      worker._Call(loaded, 'system', 'user', str)
+      worker._Call(loaded, 'system', 'user', str, 1000)
 
 
 def testLMSCallRaisesOnUnexpectedStopReason() -> None:
   """_Call raises Error when stop_reason is not 'eosFound'."""
   worker, _client = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai.MakeAIModelConfig()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(seed=5000)
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   pred_result: mock.MagicMock = _MakePredictionResult('partial', stop_reason='maxTokens')
   lm_model_mock.respond.return_value = pred_result
-  loaded: ai.LoadedModel = (config, {}, lm_model_mock)
+  loaded = ai.LoadedModel(
+    model_id=config['model_id'],
+    seed_state=bytes(32),
+    config=config,
+    metadata={},
+    model=lm_model_mock,
+  )
   with (
     mock.patch('lmstudio.LlmPredictionConfigDict', return_value={}),
     mock.patch('lmstudio.Chat') as chat_cls,
   ):
     chat_cls.return_value = mock.MagicMock()
     with pytest.raises(lms.Error, match='Unexpected stop reason'):
-      worker._Call(loaded, 'system', 'user', str)
+      worker._Call(loaded, 'system', 'user', str, 1000)
 
 
 def testLMSCallWithImageBytes() -> None:
   """_Call passes prepared images to chat.add_user_message."""
   worker, _client = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai.MakeAIModelConfig(vision=True)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(vision=True, seed=5000)
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   pred_result: mock.MagicMock = _MakePredictionResult('vision result')
   lm_model_mock.respond.return_value = pred_result
-  loaded: ai.LoadedModel = (config, {}, lm_model_mock)
+  loaded = ai.LoadedModel(
+    model_id=config['model_id'],
+    seed_state=bytes(32),
+    config=config,
+    metadata={},
+    model=lm_model_mock,
+  )
   fake_bytes = b'\x89PNG'
   fake_prepared = mock.MagicMock()
   with (
@@ -427,7 +502,7 @@ def testLMSCallWithImageBytes() -> None:
   ):
     chat_mock = mock.MagicMock()
     chat_cls.return_value = chat_mock
-    result: str = worker._Call(loaded, 'system', 'describe', str, images=[fake_bytes])
+    result: str = worker._Call(loaded, 'system', 'describe', str, 1000, images=[fake_bytes])
   assert result == 'vision result'
   prepare_mock.assert_called_once_with(fake_bytes)
   _call_args, call_kwargs = chat_mock.add_user_message.call_args
@@ -437,11 +512,17 @@ def testLMSCallWithImageBytes() -> None:
 def testLMSCallWithImagePaths() -> None:
   """_Call handles pathlib.Path images correctly (passed to prepare_image)."""
   worker, _client = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai.MakeAIModelConfig(vision=True)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(vision=True, seed=5000)
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   pred_result: mock.MagicMock = _MakePredictionResult('path vision result')
   lm_model_mock.respond.return_value = pred_result
-  loaded: ai.LoadedModel = (config, {}, lm_model_mock)
+  loaded = ai.LoadedModel(
+    model_id=config['model_id'],
+    seed_state=bytes(32),
+    config=config,
+    metadata={},
+    model=lm_model_mock,
+  )
   img_path = pathlib.Path('/fake/image.png')
   fake_prepared = mock.MagicMock()
   with (
@@ -451,7 +532,7 @@ def testLMSCallWithImagePaths() -> None:
   ):
     chat_mock = mock.MagicMock()
     chat_cls.return_value = chat_mock
-    result: str = worker._Call(loaded, 'system', 'describe', str, images=[img_path])
+    result: str = worker._Call(loaded, 'system', 'describe', str, 1000, images=[img_path])
   assert result == 'path vision result'
   prepare_mock.assert_called_once_with(img_path)
 
@@ -459,18 +540,24 @@ def testLMSCallWithImagePaths() -> None:
 def testLMSCallNoImages() -> None:
   """_Call passes images=None when no images provided."""
   worker, _client = _MakeLMSWorker()
-  config: ai.AIModelConfig = ai.MakeAIModelConfig()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(seed=5000)
   lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
   pred_result: mock.MagicMock = _MakePredictionResult('text only')
   lm_model_mock.respond.return_value = pred_result
-  loaded: ai.LoadedModel = (config, {}, lm_model_mock)
+  loaded = ai.LoadedModel(
+    model_id=config['model_id'],
+    seed_state=bytes(32),
+    config=config,
+    metadata={},
+    model=lm_model_mock,
+  )
   with (
     mock.patch('lmstudio.LlmPredictionConfigDict', return_value={}),
     mock.patch('lmstudio.Chat') as chat_cls,
   ):
     chat_mock = mock.MagicMock()
     chat_cls.return_value = chat_mock
-    result: str = worker._Call(loaded, 'system', 'user', str)
+    result: str = worker._Call(loaded, 'system', 'user', str, 1000)
   assert result == 'text only'
   _args, kwargs = chat_mock.add_user_message.call_args
   assert kwargs['images'] is None

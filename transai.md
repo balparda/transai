@@ -109,10 +109,13 @@ Usage: transai query [OPTIONS] MODEL_INPUT
  Query the model.                                                                                                                                          
                                                                                                                                                            
 ╭─ Arguments ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ *    model_input      TEXT  Model input string                                                                                                │
+│ *    model_input      TEXT  Query input string; "user prompt"                                                                                 │
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ --help          Show this message and exit.                                                                                                             │
+│ --system  -y               TEXT  Prefix prompt; prepend to query; "system prompt"; default: no system prompt                                            │
+│ --images  -i               PATH  A list of image paths to use as input for the model query; default: None, no images                                    │
+│ --free        --no-free          Unload previous models before loading new ones (LM Studio)? default: False (keep)                    │
+│ --help                           Show this message and exit.                                                                                            │
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
                                                                                                                                                            
  Example:                                                                                                                                                  

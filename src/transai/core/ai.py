@@ -224,10 +224,8 @@ class AIWorker(abc.ABC):
     # if the exact model is already loaded and we're not forcing, return it
     if not force and config['model_id'] in self._loaded_models:
       logging.info(f'Model {config["model_id"]!r} already loaded, returning existing instance')
-      return (
-        self._loaded_models[config['model_id']].config,
-        self._loaded_models[config['model_id']].metadata,
-      )
+      existing: LoadedModel = self._loaded_models[config['model_id']]
+      return (existing.config.copy(), dict(existing.metadata))
     # if ignoring quantization and the generic version of the model is already loaded, return it
     if (
       not force
@@ -235,15 +233,13 @@ class AIWorker(abc.ABC):
       and (reduced := config['model_id'].rsplit('@', 1)[0]) in self._loaded_models
     ):
       logging.info(f'Model {config["model_id"]!r} found as generic quantized version')
-      return (
-        self._loaded_models[reduced].config,
-        self._loaded_models[reduced].metadata,
-      )
+      existing = self._loaded_models[reduced]
+      return (existing.config.copy(), dict(existing.metadata))
     # otherwise, we need to load the model which will be done by the subclass implementations
     new_model: LoadedModel = self._LoadNew(config)
     self._loaded_models[new_model.model_id] = new_model
     logging.info(f'Loaded {new_model.model_id!r}: {new_model.config!r} / {new_model.metadata!r}')
-    return (new_model.config, new_model.metadata)
+    return (new_model.config.copy(), dict(new_model.metadata))
 
   @abc.abstractmethod
   def _LoadNew(self, config: AIModelConfig, /) -> LoadedModel:
