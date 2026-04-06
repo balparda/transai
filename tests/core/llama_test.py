@@ -336,7 +336,7 @@ def testLlamaWorkerLoadUsesExplicitModelPath(tmp_path: pathlib.Path) -> None:
   mock_llama = mock.MagicMock(spec=llama_cpp.Llama)
   mock_llama.metadata = {'general.name': 'test'}
   with mock.patch('llama_cpp.Llama', return_value=mock_llama):
-    loaded_config, _, model = w._Load(config)
+    loaded_config, _, model = w._LoadNew(config)
   assert loaded_config['model_path'] == gguf_file
   assert loaded_config['clip_path'] is None
   assert loaded_config['vision'] is False
@@ -354,7 +354,7 @@ def testLlamaWorkerLoadSearchesForModelWhenNoPath(tmp_path: pathlib.Path) -> Non
   mock_llama = mock.MagicMock(spec=llama_cpp.Llama)
   mock_llama.metadata = {'general.name': 'test'}
   with mock.patch('llama_cpp.Llama', return_value=mock_llama):
-    loaded_config, _, model = w._Load(config)
+    loaded_config, _, model = w._LoadNew(config)
   assert loaded_config['model_path'] == gguf_file
   assert model is mock_llama
 
@@ -378,7 +378,7 @@ def testLlamaWorkerLoadSetsVisionTrueWithClip(tmp_path: pathlib.Path) -> None:
     mock.patch('llama_cpp.Llama', return_value=mock_llama),
     mock.patch('transai.core.llama._DetectVisionHandler', return_value=mock_handler_cls),
   ):
-    loaded_config, _, _ = w._Load(config)
+    loaded_config, _, _ = w._LoadNew(config)
   assert loaded_config['vision'] is True
   mock_handler_cls.assert_called_once_with(clip_model_path=str(clip_file.resolve()))
 
@@ -392,7 +392,7 @@ def testLlamaWorkerLoadRaisesIfVisionRequestedButNoClip(tmp_path: pathlib.Path) 
   )
   w = llama.LlamaWorker(tmp_path)
   with pytest.raises(llama.Error, match='Vision requested'):
-    w._Load(config)
+    w._LoadNew(config)
 
 
 def testLlamaWorkerLoadRaisesOnUnknownVisionHandler(tmp_path: pathlib.Path) -> None:
@@ -407,7 +407,7 @@ def testLlamaWorkerLoadRaisesOnUnknownVisionHandler(tmp_path: pathlib.Path) -> N
     mock.patch('transai.core.llama._DetectVisionHandler', return_value=None),
     pytest.raises(llama.Error, match='no vision handler'),
   ):
-    w._Load(config)
+    w._LoadNew(config)
 
 
 def testLlamaWorkerLoadUsesSpecTokens(tmp_path: pathlib.Path) -> None:
@@ -426,7 +426,7 @@ def testLlamaWorkerLoadUsesSpecTokens(tmp_path: pathlib.Path) -> None:
     ) as draft_cls,
     typeguard.suppress_type_checks(),
   ):
-    w._Load(config)
+    w._LoadNew(config)
   draft_cls.assert_called_once_with(num_pred_tokens=5)
 
 
@@ -439,7 +439,7 @@ def testLlamaWorkerLoadSetsToolingFromMetadata(tmp_path: pathlib.Path) -> None:
   mock_llama = mock.MagicMock(spec=llama_cpp.Llama)
   mock_llama.metadata = {'model.type': 'functionary-chat'}
   with mock.patch('llama_cpp.Llama', return_value=mock_llama):
-    loaded_config, _, _ = w._Load(config)
+    loaded_config, _, _ = w._LoadNew(config)
   assert loaded_config['tooling'] is True
 
 
@@ -452,7 +452,7 @@ def testLlamaWorkerLoadSetsReasoningFromMetadata(tmp_path: pathlib.Path) -> None
   mock_llama = mock.MagicMock(spec=llama_cpp.Llama)
   mock_llama.metadata = {'model.type': 'deepseek-r1-reasoning'}
   with mock.patch('llama_cpp.Llama', return_value=mock_llama):
-    loaded_config, _, _ = w._Load(config)
+    loaded_config, _, _ = w._LoadNew(config)
   assert loaded_config['reasoning'] is True
 
 
@@ -465,7 +465,7 @@ def testLlamaWorkerLoadHandlesNoneMetadata(tmp_path: pathlib.Path) -> None:
   mock_llama = mock.MagicMock(spec=llama_cpp.Llama)
   mock_llama.metadata = None
   with mock.patch('llama_cpp.Llama', return_value=mock_llama):
-    _, metadata, _ = w._Load(config)
+    _, metadata, _ = w._LoadNew(config)
   assert metadata == {}
 
 

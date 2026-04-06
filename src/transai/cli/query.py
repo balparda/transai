@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+import pathlib
 
 import click
 import typer
@@ -28,20 +29,43 @@ from transai.core import ai, llama, lms
 def IsPrimeCLI(  # documentation is help/epilog/args # noqa: D103
   *,
   ctx: click.Context,
-  model_input: str = typer.Argument(..., help='Model input string'),
+  model_input: str = typer.Argument(..., help='Query input string; "user prompt"'),
+  system_prompt: str = typer.Option(
+    '',
+    '-y',
+    '--system',
+    help=('Prefix prompt; prepend to query; "system prompt"; default: no system prompt'),
+  ),
+  images: list[pathlib.Path] | None = typer.Option(  # noqa: B008
+    None,
+    '-i',
+    '--images',
+    exists=True,
+    file_okay=True,
+    readable=True,
+    help=('A list of image paths to use as input for the model query; default: None, no images'),
+  ),
+  free_resources: bool = typer.Option(
+    False,
+    '--free/--no-free',
+    help=('Unload previous models before loading new ones (LM Studio)? default: False (keep)'),
+  ),
 ) -> None:
   config: transai.TransAIConfig = ctx.obj
   if not config.lms and not config.models_root:
     raise ai.Error('Non-LM Studio client library requires `models_root` to be set')
+  if not free_resources and config.seed is not None:
+    logging.warning(f'Seed {config.seed} + `--no-free`, but to apply seed we will `--free`')
   with timer.Timer('Model LOAD'):
     worker: ai.AIWorker = (
-      lms.LMStudioWorker(free_resources=False)
+      lms.LMStudioWorker(free_resources=free_resources or config.seed is not None)
       if config.lms
       else llama.LlamaWorker(config.models_root, verbose=config.verbose < logging.INFO)  # type: ignore[arg-type]
     )
     model_config, _ = worker.LoadModel(
       ai.MakeAIModelConfig(
         model_id=config.model,
+        vision=bool(images),  # if there are images, we need vision support!
         seed=config.seed,
         context=config.context,
         temperature=config.temperature,
@@ -55,5 +79,11 @@ def IsPrimeCLI(  # documentation is help/epilog/args # noqa: D103
       )
     )
   with timer.Timer('Model QUERY'):
-    response: str = worker.ModelCall(model_config['model_id'], '', model_input, str)
+    response: str = worker.ModelCall(
+      model_config['model_id'],
+      system_prompt.strip(),
+      model_input.strip(),
+      str,
+      images=list(images) if images else None,
+    )
   config.console.print(response)

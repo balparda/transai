@@ -49,10 +49,15 @@ class LMStudioWorker(ai.AIWorker):
     self._client: lmstudio.Client = lmstudio.Client(api_host)
     # unload all currently loaded LLMs to free VRAM/RAM before loading our model;
     # without this, loading a large model on top of others will likely exhaust system resources
-    if free_resources:
-      for loaded in self._client.llm.list_loaded():
+    for loaded in self._client.llm.list_loaded():
+      if free_resources:
         logging.info(f'Unloading existing model {loaded.identifier!r} to free resources')
         self._client.llm.unload(loaded.identifier)
+      else:
+        info: ai.LoadedModel = _ExtractModelInfo(
+          loaded, ai.MakeAIModelConfig(model_id=loaded.identifier)
+        )
+        self._RegisterModel(info)
 
   def Close(self) -> None:
     """Close any started sessions."""
@@ -60,7 +65,7 @@ class LMStudioWorker(ai.AIWorker):
     self._client.close()
     super().Close()
 
-  def _Load(self, config: ai.AIModelConfig, /) -> ai.LoadedModel:
+  def _LoadNew(self, config: ai.AIModelConfig, /) -> ai.LoadedModel:
     """Load the model with the given configuration.
 
     Args:
@@ -123,31 +128,10 @@ class LMStudioWorker(ai.AIWorker):
     )
     # load model
     logging.info(f'Loading model {config["model_id"]!r}')
-    model: lmstudio.LLM = self._client.llm.load_new_instance(config['model_id'], config=load_config)
     # do basic model validation and return if OK
-    model_info = model.get_info()
-    if not isinstance(model_info, lmstudio.LlmInstanceInfo):
-      raise Error(f'Model {config["model_id"]} not a valid LLM instance')
-    model_key: str = model_info.model_key.strip()
-    if config['vision'] and not model_info.vision:
-      raise Error(f'Model {model_key} not a vision model')
-    if config['tooling'] and not model_info.trained_for_tool_use:
-      raise Error(f'Model {model_key} not trained for tool use')
-    if (n_ctx := model.get_context_length()) < config['context']:
-      raise Error(
-        f'Model {model_key} has insufficient context length '
-        f'({n_ctx}/{model_info.max_context_length}) for '
-        'auto-tagging: you should select a vision model with at least 32k context length'
-      )
-    new_config: ai.AIModelConfig = config.copy()
-    new_config.update(
-      {
-        'model_id': model_key,
-        'vision': model_info.vision,
-        'tooling': model_info.trained_for_tool_use,
-      }
+    return _ExtractModelInfo(
+      self._client.llm.load_new_instance(config['model_id'], config=load_config), config
     )
-    return (new_config, cast('ai.AIModelMetadata', model_info.to_dict()), model)
 
   def _Call[T: pydantic.BaseModel | str](  # noqa: PLR6301
     self,
@@ -211,3 +195,43 @@ class LMStudioWorker(ai.AIWorker):
       raise Error(f'Unexpected stop reason {result.stats.stop_reason!r} while generating concilium')
     # parse and return the verdict
     return result.content if output_format is str else output_format.model_validate(result.parsed)  # type: ignore[return-value,attr-defined]
+
+
+def _ExtractModelInfo(model: lmstudio.LLM, config: ai.AIModelConfig, /) -> ai.LoadedModel:
+  """Extract and validate model information from the given LMStudio LLM instance.
+
+  Args:
+    model: the LMStudio LLM instance to extract information from
+    config: the original AIModelConfig used for loading, for reference and validation
+
+  Returns:
+    a tuple of (AIModelConfig, ModelMetadata, LLM) with the extracted and validated model info
+
+  Raises:
+    Error: if the model information is invalid or does not meet the requirements of config
+
+  """
+  # do basic model validation and return if OK
+  model_info = model.get_info()
+  if not isinstance(model_info, lmstudio.LlmInstanceInfo):
+    raise Error(f'Model {config["model_id"]} not a valid LLM instance')
+  model_key: str = config['model_id']
+  if config['vision'] and not model_info.vision:
+    raise Error(f'Model {model_key} not a vision model')
+  if config['tooling'] and not model_info.trained_for_tool_use:
+    raise Error(f'Model {model_key} not trained for tool use')
+  if (n_ctx := model.get_context_length()) < config['context']:
+    raise Error(
+      f'Model {model_key} has insufficient context length '
+      f'({n_ctx}/{model_info.max_context_length}) for '
+      'auto-tagging: you should select a vision model with at least 32k context length'
+    )
+  new_config: ai.AIModelConfig = config.copy()
+  new_config.update(
+    {
+      'vision': model_info.vision,
+      'tooling': model_info.trained_for_tool_use,
+      'context': n_ctx,
+    }
+  )
+  return (new_config, cast('ai.AIModelMetadata', model_info.to_dict()), model)

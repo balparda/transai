@@ -99,7 +99,7 @@ class LlamaWorker(ai.AIWorker):
       raise Error(f'models_root is not a directory: {self._models_root}')
     logging.info(f'LLAMA @ {self._models_root}')
 
-  def _Load(self, config: ai.AIModelConfig, /) -> ai.LoadedModel:
+  def _LoadNew(self, config: ai.AIModelConfig, /) -> ai.LoadedModel:
     """Load the model with the given configuration.
 
     Args:

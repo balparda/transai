@@ -81,7 +81,7 @@ def MakeAIModelConfig(**overrides: object) -> AIModelConfig:
     'gpu_ratio': DEFAULT_GPU_RATIO,
     'gpu_layers': -1,
     'vision': False,
-    'tooling': False,
+    'tooling': False,  # TODO: implement tooling support
     'reasoning': False,
     'fp16': False,
     'use_mmap': True,
@@ -130,13 +130,32 @@ class AIWorker(abc.ABC):
     self._loaded_models.clear()
 
   @final
-  def LoadModel(self, config: AIModelConfig, /) -> tuple[AIModelConfig, AIModelMetadata]:
+  def _RegisterModel(self, model: LoadedModel, /) -> None:
+    """Register a loaded model in the worker's internal state.
+
+    This should be called by the subclass implementations after successfully loading a model,
+    to keep track of the loaded models and their configurations.
+
+    Args:
+      model: the loaded model tuple to register
+
+    """
+    config: AIModelConfig = self._ConfigSeed(model[0])
+    self._loaded_models[config['model_id']] = (config, model[1].copy(), model[2])
+    logging.info(f'Registered model {config["model_id"]!r}: {model[0]!r} / {model[1]!r}')
+
+  @final
+  def LoadModel(
+    self, config: AIModelConfig, /, *, force: bool = False, ignore_quant: bool = True
+  ) -> tuple[AIModelConfig, AIModelMetadata]:
     """Load the model with the given configuration.
 
     Args:
       config: AIModelConfig with loading parameters, `model_id` must be provided; the other fields
           may be ignored or overridden by the caller; the loading implementation should fill
           in any missing fields with the actual values used for loading
+      force (default=False): whether to force reload the model even if it is already loaded
+      ignore_quant (default=True): whether to ignore quantization part of `model_id`
 
     Returns:
       (
@@ -146,7 +165,24 @@ class AIWorker(abc.ABC):
       )
 
     """
-    new_model: LoadedModel = self._Load(self._ConfigSeed(config))
+    if not force and config['seed'] is not None:
+      force = True  # if a seed is specified, we have to force reload to apply it
+      logging.info(f'Seed {config["seed"]} specified in config, forcing model reload to apply')
+    config = self._ConfigSeed(config)  # standardize 'model_id' and 'seed'
+    # if the exact model is already loaded and we're not forcing, return it
+    if not force and config['model_id'] in self._loaded_models:
+      logging.info(f'Model {config["model_id"]!r} already loaded, returning existing instance')
+      return self._loaded_models[config['model_id']][0], self._loaded_models[config['model_id']][1]
+    # if ignoring quantization and the generic version of the model is already loaded, return it
+    if (
+      not force
+      and ignore_quant
+      and (reduced := config['model_id'].rsplit('@', 1)[0]) in self._loaded_models
+    ):
+      logging.info(f'Model {config["model_id"]!r} found as generic quantized version')
+      return self._loaded_models[reduced][0], self._loaded_models[reduced][1]
+    # otherwise, we need to load the model which will be done by the subclass implementations
+    new_model: LoadedModel = self._LoadNew(config)
     config = new_model[0]
     self._loaded_models[config['model_id']] = (
       new_model[0].copy(),
@@ -157,7 +193,7 @@ class AIWorker(abc.ABC):
     return (new_model[0], new_model[1])
 
   @abc.abstractmethod
-  def _Load(self, config: AIModelConfig, /) -> LoadedModel:
+  def _LoadNew(self, config: AIModelConfig, /) -> LoadedModel:
     """Load the model with the given configuration.
 
     Args:
@@ -207,6 +243,8 @@ class AIWorker(abc.ABC):
     if not 0.1 <= config['gpu_ratio'] <= 1.0:  # noqa: PLR2004
       raise Error(f'AIModelConfig.gpu_ratio must be between .1 and 1.0, got {config["gpu_ratio"]}')
     # we can't retrieve the seed later, so we inject here if not given
+    if config['seed'] == -1:
+      config['seed'] = None  # just for safety, but shouldn't happen
     actual_seed: int = saferandom.RandBits(31) if config['seed'] is None else config['seed']
     if not 1 <= actual_seed <= AI_MAX_SEED:
       raise Error(f'seed must be between 1 and 2^31-1, got {actual_seed}')

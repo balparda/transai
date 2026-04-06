@@ -178,7 +178,7 @@ def testLMSWorkerLoadSuccessBasic() -> None:
   lm_model_mock.get_context_length.return_value = 2048
   client_mock.llm.load_new_instance.return_value = lm_model_mock
   with mock.patch('lmstudio.LlmLoadModelConfigDict', return_value={}):
-    loaded_config, metadata, model = worker._Load(config)
+    loaded_config, metadata, model = worker._LoadNew(config)
   assert loaded_config['model_id'] == 'test-model'
   assert model is lm_model_mock
   assert metadata == {'model_key': 'test-model', 'vision': False, 'tooling': False}
@@ -194,7 +194,7 @@ def testLMSWorkerLoadUpdatesModelIdFromInfo() -> None:
   lm_model_mock.get_context_length.return_value = 4096
   client_mock.llm.load_new_instance.return_value = lm_model_mock
   with mock.patch('lmstudio.LlmLoadModelConfigDict', return_value={}):
-    loaded_config, _meta, _model = worker._Load(config)
+    loaded_config, _meta, _model = worker._LoadNew(config)
   assert loaded_config['model_id'] == 'canonical/model-key'
 
 
@@ -208,7 +208,7 @@ def testLMSWorkerLoadSetsVisionFromModelInfo() -> None:
   lm_model_mock.get_context_length.return_value = 4096
   client_mock.llm.load_new_instance.return_value = lm_model_mock
   with mock.patch('lmstudio.LlmLoadModelConfigDict', return_value={}):
-    loaded_config, _meta, _model = worker._Load(config)
+    loaded_config, _meta, _model = worker._LoadNew(config)
   assert loaded_config['vision'] is True
   assert loaded_config['tooling'] is True
 
@@ -224,7 +224,7 @@ def testLMSWorkerLoadRaisesIfModelInfoNotLlmInstanceInfo() -> None:
     mock.patch('lmstudio.LlmLoadModelConfigDict', return_value={}),
     pytest.raises(lms.Error, match='not a valid LLM instance'),
   ):
-    worker._Load(config)
+    worker._LoadNew(config)
 
 
 def testLMSWorkerLoadRaisesIfVisionRequestedButNotSupported() -> None:
@@ -240,7 +240,7 @@ def testLMSWorkerLoadRaisesIfVisionRequestedButNotSupported() -> None:
     mock.patch('lmstudio.LlmLoadModelConfigDict', return_value={}),
     pytest.raises(lms.Error, match='not a vision model'),
   ):
-    worker._Load(config)
+    worker._LoadNew(config)
 
 
 def testLMSWorkerLoadRaisesIfToolingRequestedButNotSupported() -> None:
@@ -256,7 +256,7 @@ def testLMSWorkerLoadRaisesIfToolingRequestedButNotSupported() -> None:
     mock.patch('lmstudio.LlmLoadModelConfigDict', return_value={}),
     pytest.raises(lms.Error, match='not trained for tool use'),
   ):
-    worker._Load(config)
+    worker._LoadNew(config)
 
 
 def testLMSWorkerLoadRaisesIfContextLengthInsufficient() -> None:
@@ -272,7 +272,7 @@ def testLMSWorkerLoadRaisesIfContextLengthInsufficient() -> None:
     mock.patch('lmstudio.LlmLoadModelConfigDict', return_value={}),
     pytest.raises(lms.Error, match='insufficient context length'),
   ):
-    worker._Load(config)
+    worker._LoadNew(config)
 
 
 def testLMSWorkerLoadRaisesOnReasoning() -> None:
@@ -280,7 +280,7 @@ def testLMSWorkerLoadRaisesOnReasoning() -> None:
   worker, _client = _MakeLMSWorker()
   config: ai.AIModelConfig = ai.MakeAIModelConfig(reasoning=True)
   with pytest.raises(lms.Error, match='reasoning is not supported'):
-    worker._Load(config)
+    worker._LoadNew(config)
 
 
 def testLMSWorkerLoadWarnsOnIgnoredFields() -> None:
@@ -303,7 +303,7 @@ def testLMSWorkerLoadWarnsOnIgnoredFields() -> None:
     mock.patch.object(lmstudio, 'LlmLoadModelConfigDict', return_value={}),
     mock.patch('transai.core.lms.logging') as log_mock,
   ):
-    worker._Load(config)
+    worker._LoadNew(config)
   # model_path + kv_cache + (flash | gpu_layers | spec_tokens) = at least 3 warnings
   assert log_mock.warning.call_count >= 3
 

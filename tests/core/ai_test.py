@@ -33,7 +33,7 @@ class _ConcreteWorker(ai.AIWorker):
     self._load_return: ai.LoadedModel | None = None
     self._call_return: object = 'default'
 
-  def _Load(self, _config: ai.AIModelConfig, /) -> ai.LoadedModel:
+  def _LoadNew(self, _config: ai.AIModelConfig, /) -> ai.LoadedModel:
     """Return whatever was configured for the test."""  # noqa: DOC201, DOC501
     if self._load_return is None:
       raise ai.Error('_load_return not set')
