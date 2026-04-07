@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import cast
 
 import lmstudio
@@ -13,6 +14,8 @@ from transcrypto.core import hashes
 from transcrypto.utils import base
 
 from transai.core import ai
+
+_RE_THINK: re.Pattern[str] = re.compile(r'<think>.*?</think>', flags=re.DOTALL)
 
 
 class Error(ai.Error):
@@ -146,6 +149,7 @@ class LMStudioWorker(ai.AIWorker):
     /,
     *,
     images: list[ai.AIImageInput] | None = None,
+    tools: list[ai.AIToolInput] | None = None,
   ) -> T:
     """Make a call to the model.
 
@@ -158,6 +162,9 @@ class LMStudioWorker(ai.AIWorker):
       call_seed: the pre-computed seed to use for this call, derived from the model's seed state
       images (default=None): optional list of images to send as input, either as bytes or file
           paths; only supported if the model has vision capability
+      tools (default=None): optional list of tools (methods) to use during the call;
+          only supported if the model has tool capability; mandates str `output_format`;
+          also make sure the methods are all typed and have proper docstrings for best results
 
     Returns:
       the model output, either as a raw string or parsed into the given `output_format` class
@@ -184,21 +191,94 @@ class LMStudioWorker(ai.AIWorker):
     )
     # call the model
     logging.debug(f'Calling AI with config {config!r} and chat {chat!r}')
+    llm: lmstudio.LLM = cast('lmstudio.LLM', model.model)
     try:
-      result: lmstudio.PredictionResult = cast('lmstudio.LLM', model.model).respond(
-        chat,
-        config=config,
-        response_format=None if output_format is str else output_format,  # type: ignore[arg-type]
-      )
+      if tools:
+        # this is a tool-using call
+        if output_format is not str:
+          raise Error('Tools and return non-str output: unsupported')
+        return _CallLMSAct(llm, chat, config, tools)  # type: ignore[return-value]
+      # this is a normal call without tools: call, parse and return the result
+      result: lmstudio.PredictionResult = _CallLMSRespond(llm, chat, config, output_format)
+      return result.content if output_format is str else output_format.model_validate(result.parsed)  # type: ignore[return-value,attr-defined]
     except lmstudio.LMStudioServerError as err:
       raise Error(f'Error calling model {model.model_id!r}: {err}') from err
-    # log and check results
-    logging.debug('Predicted tokens: %d', result.stats.predicted_tokens_count)
-    logging.debug('Time to first token (seconds): %f', result.stats.time_to_first_token_sec)
-    if result.stats.stop_reason != 'eosFound':
-      raise Error(f'Unexpected stop reason {result.stats.stop_reason!r} while generating concilium')
-    # parse and return the verdict
-    return result.content if output_format is str else output_format.model_validate(result.parsed)  # type: ignore[return-value,attr-defined]
+
+
+def _CallLMSRespond(
+  llm: lmstudio.LLM,
+  chat: lmstudio.Chat,
+  config: lmstudio.LlmPredictionConfigDict,
+  output_format: type,
+) -> lmstudio.PredictionResult:
+  result: lmstudio.PredictionResult = llm.respond(
+    chat,
+    config=config,
+    response_format=None if output_format is str else output_format,
+  )
+  # log and check results
+  logging.debug('Predicted tokens: %d', result.stats.predicted_tokens_count)
+  logging.debug('Time to first token (seconds): %f', result.stats.time_to_first_token_sec)
+  if result.stats.stop_reason != 'eosFound':
+    raise Error(f'Unexpected stop reason {result.stats.stop_reason!r} while calling LMS')
+  return result
+
+
+def _CallLMSAct(
+  llm: lmstudio.LLM,
+  chat: lmstudio.Chat,
+  config: lmstudio.LlmPredictionConfigDict,
+  tools: list[ai.AIToolInput],
+) -> str:
+  """Call the LMStudio LLM using the Act API to support tool use.
+
+  Args:
+    llm: the LMStudio LLM instance to call
+    chat: the LMStudio Chat instance containing the system and user messages
+    config: the LMStudio LlmPredictionConfigDict with the prediction configuration
+    tools: the list of tools (methods) to use during the call
+
+  Returns:
+    the string output from the model after processing the chat and tool calls
+
+  """
+  messages: list[str] = []
+  hanging_calls: dict[str, str] = {}
+
+  def _Act(message: lmstudio.AssistantResponse | lmstudio.ToolResultMessage) -> None:
+    method_call: str
+    for content in message.content:
+      if isinstance(content, lmstudio.TextData):
+        logging.debug(f'Model returned text content: {content.text!r}')
+        # remove <think>...</think> part, if present
+        all_content: str = _RE_THINK.sub('', content.text).strip()
+        if all_content:
+          messages.append(all_content)
+      elif isinstance(content, lmstudio.FileHandle):
+        logging.error(f'Model returned unexpected file handle: {content!r}')
+      elif isinstance(content, lmstudio.ToolCallResultData):
+        if not content.tool_call_id:
+          raise Error(f'Tool response missing id: {content!r}')
+        if content.tool_call_id not in hanging_calls:
+          raise Error(f'Tool response with unknown id: {content!r}')
+        method_call = hanging_calls.pop(content.tool_call_id)
+        logging.info(f'{method_call} -> {content.content} (# {content.tool_call_id})')
+      else:
+        # this has to be a ToolCallRequestData
+        if not content.tool_call_request.id:
+          raise Error(f'Tool call missing id: {content!r}')
+        args: str = (
+          ', '.join(f'{f}={v!r}' for f, v in content.tool_call_request.arguments.items())
+          if content.tool_call_request.arguments
+          else ''
+        )
+        method_call = f'{content.tool_call_request.name}({args})'
+        hanging_calls[content.tool_call_request.id] = method_call
+        logging.debug(f'{method_call} -> {content.tool_call_request.id}')
+
+  act_result: lmstudio.ActResult = llm.act(chat, config=config, tools=tools, on_message=_Act)
+  logging.debug(f'Predicted tool calls: {act_result.rounds}')
+  return '\n'.join(messages)  # type: ignore[return-value]
 
 
 def _ExtractModelInfo(model: lmstudio.LLM, config: ai.AIModelConfig, /) -> ai.LoadedModel:

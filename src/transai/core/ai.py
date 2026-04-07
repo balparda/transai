@@ -5,12 +5,13 @@
 from __future__ import annotations
 
 import abc
+import collections.abc
 import dataclasses
 import functools
 import json
 import logging
 import pathlib
-from typing import Self, TypedDict, final
+from typing import Any, Self, TypedDict, final
 
 import llama_cpp
 import lmstudio
@@ -95,6 +96,7 @@ class LoadedModel:
 
 type AIModelMetadata = base.JSONDict  # metadata about the loaded model
 type AIImageInput = bytes | pathlib.Path | str
+type AIToolInput = collections.abc.Callable[..., Any]
 type _SupportedModelObject = llama_cpp.Llama | lmstudio.LLM  # supported backends actual model type
 type _LoadedModelsDict = dict[str, LoadedModel]
 _LLM_REQUIRING_CLOSE_METHOD: tuple[type[_SupportedModelObject], ...] = (llama_cpp.Llama,)
@@ -316,6 +318,7 @@ class AIWorker(abc.ABC):
     /,
     *,
     images: list[AIImageInput] | None = None,
+    tools: list[AIToolInput] | None = None,
   ) -> T:
     """Make a call to the model.
 
@@ -328,6 +331,9 @@ class AIWorker(abc.ABC):
           if not given, the raw string output from the model will be returned
       images (default=None): optional list of images to send as input, either as bytes or file
           paths; only supported if the model has vision capability
+      tools (default=None): optional list of tools (methods) to use during the call;
+          only supported if the model has tool capability; mandates str `output_format`;
+          also make sure the methods are all typed and have proper docstrings for best results
 
     Returns:
       the model output, either as a raw string or parsed into the given `output_format` class
@@ -341,13 +347,22 @@ class AIWorker(abc.ABC):
       raise Error(f'Model {model_id!r} not loaded; call LoadModel() first')
     # get loaded model and iterate seed state
     loaded: LoadedModel = self._loaded_models[model_id]
+    if images and not loaded.config['vision']:
+      raise Error(f'Model {model_id!r} does not support vision inputs, but images were provided')
+    if tools and not loaded.config['tooling']:
+      raise Error(f'Tools provided but model {model_id!r} not trained for tool use')
+    if tools and output_format is not str:
+      # TODO: see if llama.cpp can handle this case...
+      raise Error(f'Model {model_id!r} asked to use tools and return non-str output: unsupported')
     new_seed: int = 0
     while new_seed <= 1:  # just for safety, but should never (rarely) happen
       loaded.seed_state = hashes.Hash256(loaded.seed_state)  # S <- SHA256(S)
       new_seed = base.BytesToInt(loaded.seed_state) % AI_MAX_SEED  # (AI_MAX_SEED is prime)
     logging.info(f'Calling {model_id!r} @{new_seed} ({loaded.seed_state.hex()})')
     try:
-      return self._Call(loaded, system_prompt, user_prompt, output_format, new_seed, images=images)
+      return self._Call(
+        loaded, system_prompt, user_prompt, output_format, new_seed, images=images, tools=tools
+      )
     except json.JSONDecodeError as err:
       raise Error(f'Model {model_id!r} returned invalid JSON output') from err
     except Exception as err:
@@ -365,6 +380,7 @@ class AIWorker(abc.ABC):
     /,
     *,
     images: list[AIImageInput] | None = None,
+    tools: list[AIToolInput] | None = None,
   ) -> T:
     """Make a call to the model.
 
@@ -377,6 +393,9 @@ class AIWorker(abc.ABC):
       call_seed: the pre-computed seed to use for this call, derived from the model's seed state
       images (default=None): optional list of images to send as input, either as bytes or file
           paths; only supported if the model has vision capability
+      tools (default=None): optional list of tools (methods) to use during the call;
+          only supported if the model has tool capability; mandates str `output_format`;
+          also make sure the methods are all typed and have proper docstrings for best results
 
     Returns:
       the model output, either as a raw string or parsed into the given `output_format` class

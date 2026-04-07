@@ -270,7 +270,7 @@ These models can process images.
 | Model Flag Value | Size | Type | Tool? | Reason? | Comment |
 | --- | --- | --- | --- | --- | --- |
 | [`qwen3-vl-32b-instruct@Q8_0`](https://huggingface.co/Qwen/Qwen3-VL-32B-Instruct-GGUF) | 36GB | `llm/qwen3vl/GGUF` | Y | | Very good, slow. |
-| [`qwen3-vl-32b-instruct@F16`](https://huggingface.co/Qwen/Qwen3-VL-32B-Instruct-GGUF) | 67GB | `llm/qwen3vl/GGUF` | Y | | `--fp16` - Very good, slow.  Q8_0 version is much faster and still very good. |
+| [`qwen3-vl-32b-instruct@F16`](https://huggingface.co/Qwen/Qwen3-VL-32B-Instruct-GGUF) | 67GB | `llm/qwen3vl/GGUF` | Y | | `--fp16` - Very good, slow.  Q8_0 version is faster-ish and still very good. |
 | [`qwen3.5-35b-a3b@Q8_0`](https://lmstudio.ai/models/qwen/qwen3.5-35b-a3b) [*](https://huggingface.co/lmstudio-community/Qwen3.5-35B-A3B-GGUF) | 38GB | `llm/qwen35moe/GGUF` | Y | Y | Decent, slow. |
 | [`zai-org/glm-4.6v-flash@8bit`](https://lmstudio.ai/models/zai-org/glm-4.6v-flash) [*](https://huggingface.co/lmstudio-community/GLM-4.6V-Flash-MLX-8bit) | 12GB | `llm/glm4v/MLX` | Y | Y | Decent, slow. |
 

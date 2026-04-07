@@ -10,7 +10,8 @@ What we verify:
 - ``transai --version`` prints the expected version.
 - ``transai --no-lms query ...`` with a larger vision GGUF model produces text output.
 
-# TODO: better model description
+The `Qwen3-VL-2B` model we use is a functional vision model, but even so it is 2+ GB
+and so is excluded from Github runs.
 """
 
 from __future__ import annotations
@@ -28,11 +29,11 @@ import transai
 _APP_NAME: str = 'transai'  # this is the directory name, the package name
 _APP_NAMES: set[str] = {'transai'}  # this is the console scripts names
 
-# ggml-org/Qwen3-VL-2B-Instruct-GGUF: ????:
+# ggml-org/Qwen3-VL-2B-Instruct-GGUF: functional vision model 2+ GB:
 # <https://huggingface.co/ggml-org/Qwen3-VL-2B-Instruct-GGUF>
 _HF_REPO: str = 'ggml-org/Qwen3-VL-2B-Instruct-GGUF'
-_GGUF_FILE: str = 'Qwen3-VL-2B-Instruct-Q8_0.gguf'
-_MMPROJ_FILE: str = 'mmproj-Qwen3-VL-2B-Instruct-Q8_0.gguf'
+_GGUF_FILE: str = 'Qwen3-VL-2B-Instruct-Q8_0.gguf'  # 1.83 GB
+_MMPROJ_FILE: str = 'mmproj-Qwen3-VL-2B-Instruct-Q8_0.gguf'  # 445 MB
 _MODEL_ID: str = 'Qwen3-VL-2B'
 
 # On macOS, llama.cpp's Metal backend sometimes fires a SIGABRT (exit -6) during

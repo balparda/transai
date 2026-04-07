@@ -37,8 +37,8 @@ _APP_NAMES: set[str] = {'transai'}  # this is the console scripts names
 # ggml-org/tinygemma3-GGUF: official llama.cpp CI test model:
 # <https://huggingface.co/ggml-org/tinygemma3-GGUF>
 _HF_REPO: str = 'ggml-org/tinygemma3-GGUF'
-_GGUF_FILE: str = 'tinygemma3-Q8_0.gguf'
-_MMPROJ_FILE: str = 'mmproj-tinygemma3.gguf'
+_GGUF_FILE: str = 'tinygemma3-Q8_0.gguf'  # 47 MB
+_MMPROJ_FILE: str = 'mmproj-tinygemma3.gguf'  # 1 MB
 _MODEL_ID: str = 'tinygemma3'
 
 
