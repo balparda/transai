@@ -32,7 +32,7 @@ This project follows a pragmatic versioning approach:
   - integration test that downloads big model, to run locally (1.0.1)
 
 - Changed
-  - N/A
+  - load() and call() model will catch Exception and raise Error
 
 - Fixed
   - N/A

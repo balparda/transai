@@ -30,6 +30,9 @@ Since version 1.0.0 it is a PyPI package: <https://pypi.org/project/transai/>
     - [Querying a model (structured JSON)](#querying-a-model-structured-json)
     - [Vision models (images)](#vision-models-images)
     - [Image utilities](#image-utilities)
+  - [AI Guide](#ai-guide)
+    - [Vision Models](#vision-models)
+    - [Blind Models](#blind-models)
   - [CLI Interface](#cli-interface)
     - [Quick start](#quick-start)
     - [Global flags](#global-flags)
@@ -255,6 +258,31 @@ for frame_png in images.AnimationFrames(animated_gif_bytes):
   # each frame is PNG bytes, resized to max 336px
   pass
 ```
+
+## AI Guide
+
+Models suggestions as of April/2026. Just an opinion, not to be taken seriously. Do your own tests.
+
+### Vision Models
+
+These models can process images.
+
+| Model Flag Value | Size | Type | Tool? | Reason? | Comment |
+| --- | --- | --- | --- | --- | --- |
+| [`qwen3-vl-32b-instruct@Q8_0`](https://huggingface.co/Qwen/Qwen3-VL-32B-Instruct-GGUF) | 36GB | `llm/qwen3vl/GGUF` | Y | | Very good, slow. |
+| [`qwen3-vl-32b-instruct@F16`](https://huggingface.co/Qwen/Qwen3-VL-32B-Instruct-GGUF) | 67GB | `llm/qwen3vl/GGUF` | Y | | `--fp16` - Very good, slow.  Q8_0 version is much faster and still very good. |
+| [`qwen3.5-35b-a3b@Q8_0`](https://lmstudio.ai/models/qwen/qwen3.5-35b-a3b) [*](https://huggingface.co/lmstudio-community/Qwen3.5-35B-A3B-GGUF) | 38GB | `llm/qwen35moe/GGUF` | Y | Y | Decent, slow. |
+| [`zai-org/glm-4.6v-flash@8bit`](https://lmstudio.ai/models/zai-org/glm-4.6v-flash) [*](https://huggingface.co/lmstudio-community/GLM-4.6V-Flash-MLX-8bit) | 12GB | `llm/glm4v/MLX` | Y | Y | Decent, slow. |
+
+### Blind Models
+
+These models cannot process images (blind).
+
+| Model Flag Value | Size | Type | Tool? | Reason? | Comment |
+| --- | --- | --- | --- | --- | --- |
+| [`qwen3-8b@Q8_0`](https://huggingface.co/Qwen/Qwen3-8B-GGUF) | 8.7GB | `llm/qwen3/GGUF` | Y | | Good, medium-speed. |
+| [`gpt-oss-20b@MXFP4`](https://lmstudio.ai/models/openai/gpt-oss-20b) [*](https://huggingface.co/mlx-community/gpt-oss-20b-MXFP4-Q8) | 12GB | `llm/gpt_oss/MLX` | Y | Y | Poor, slow. |
+| [`zai-org/glm-4.7-flash@8bit`](https://lmstudio.ai/models/zai-org/glm-4.7-flash) [*](https://huggingface.co/lmstudio-community/GLM-4.7-Flash-MLX-8bit) | 32GB | `llm/glm4v/MLX` | Y | Y | Good, inconsistent. |
 
 ## CLI Interface
 

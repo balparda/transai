@@ -7,6 +7,7 @@ from __future__ import annotations
 import abc
 import dataclasses
 import functools
+import json
 import logging
 import pathlib
 from typing import Self, TypedDict, final
@@ -212,7 +213,7 @@ class AIWorker(abc.ABC):
       )
 
     Raises:
-      Error: on error
+      Error: on loading errors
 
     """
     if not force and config['seed'] is not None:
@@ -236,7 +237,11 @@ class AIWorker(abc.ABC):
       existing = self._loaded_models[reduced]
       return (existing.config.copy(), dict(existing.metadata))
     # otherwise, we need to load the model which will be done by the subclass implementations
-    new_model: LoadedModel = self._LoadNew(config)
+    try:
+      new_model: LoadedModel = self._LoadNew(config)
+    except Exception as err:
+      # convert generic exceptions to our Error type for better error handling and debugging
+      raise Error(f'Error loading model {config["model_id"]!r}') from err
     self._loaded_models[new_model.model_id] = new_model
     logging.info(f'Loaded {new_model.model_id!r}: {new_model.config!r} / {new_model.metadata!r}')
     return (new_model.config.copy(), dict(new_model.metadata))
@@ -341,7 +346,13 @@ class AIWorker(abc.ABC):
       loaded.seed_state = hashes.Hash256(loaded.seed_state)  # S <- SHA256(S)
       new_seed = base.BytesToInt(loaded.seed_state) % AI_MAX_SEED  # (AI_MAX_SEED is prime)
     logging.info(f'Calling {model_id!r} @{new_seed} ({loaded.seed_state.hex()})')
-    return self._Call(loaded, system_prompt, user_prompt, output_format, new_seed, images=images)
+    try:
+      return self._Call(loaded, system_prompt, user_prompt, output_format, new_seed, images=images)
+    except json.JSONDecodeError as err:
+      raise Error(f'Model {model_id!r} returned invalid JSON output') from err
+    except Exception as err:
+      # convert generic exceptions to our Error type for better error handling and debugging
+      raise Error(f'Error calling model {model_id!r}') from err
 
   @abc.abstractmethod
   def _Call[T: pydantic.BaseModel | str](

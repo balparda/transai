@@ -8,6 +8,7 @@ Run with:
 
 from __future__ import annotations
 
+import json
 import pathlib
 from unittest import mock
 
@@ -426,6 +427,16 @@ def testLoadModelReturnsCachedForQuantizedVariant() -> None:
   assert cfg['model_id'] == 'my-model'
 
 
+def testLoadModelWrapsNonErrorExceptionFromLoadNew() -> None:
+  """LoadModel() must catch generic exceptions from _LoadNew() and re-raise as Error."""
+  w = _ConcreteWorker()
+  with (
+    mock.patch.object(w, '_LoadNew', side_effect=RuntimeError('backend exploded')),
+    pytest.raises(ai.Error, match='Error loading model'),
+  ):
+    w.LoadModel(ai.MakeAIModelConfig())
+
+
 # ---------------------------------------------------------------------------
 # AIWorker._RegisterModel
 # ---------------------------------------------------------------------------
@@ -481,6 +492,30 @@ def testModelCallRaisesForUnknownModel() -> None:
   w = _ConcreteWorker()
   with pytest.raises(ai.Error, match='not loaded'):
     w.ModelCall('unknown', 'sys', 'user', str)
+
+
+def testModelCallWrapsJsonDecodeErrorFromCall() -> None:
+  """ModelCall() must catch json.JSONDecodeError from _Call() and re-raise as Error."""
+  w = _ConcreteWorker()
+  loaded: ai.LoadedModel = _MakeLlamaModel()
+  w._loaded_models[ai.DEFAULT_TEXT_MODEL] = loaded
+  with (
+    mock.patch.object(w, '_Call', side_effect=json.JSONDecodeError('bad json', '', 0)),
+    pytest.raises(ai.Error, match='invalid JSON output'),
+  ):
+    w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str)
+
+
+def testModelCallWrapsGenericExceptionFromCall() -> None:
+  """ModelCall() must catch generic exceptions from _Call() and re-raise as Error."""
+  w = _ConcreteWorker()
+  loaded: ai.LoadedModel = _MakeLlamaModel()
+  w._loaded_models[ai.DEFAULT_TEXT_MODEL] = loaded
+  with (
+    mock.patch.object(w, '_Call', side_effect=RuntimeError('backend exploded')),
+    pytest.raises(ai.Error, match='Error calling model'),
+  ):
+    w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str)
 
 
 def testModelCallPassesImagesThrough() -> None:
