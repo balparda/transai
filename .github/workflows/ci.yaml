@@ -86,4 +86,6 @@ jobs:
         run: poetry build -f wheel
 
       - name: Integration tests (installed CLI)
-        run: poetry run pytest -q tests_integration
+        # Note: we do not run the larger test_larger_model.py here, even though it is part of
+        # the integration suite, b/c it downloads larger models
+        run: poetry run pytest -q tests_integration/test_installed_cli.py

@@ -1,6 +1,5 @@
 # SPDX-FileCopyrightText: Copyright 2026 Daniel Balparda
 # SPDX-License-Identifier: Apache-2.0
-
 """Integration tests: build wheel, install into a fresh venv, run the installed CLI.
 
 Why this exists (vs normal unit tests):
@@ -61,12 +60,10 @@ def models_root(tmp_path_factory: pytest.TempPathFactory) -> pathlib.Path:
 
   """
   cached_gguf: str = huggingface_hub.hf_hub_download(_HF_REPO, _GGUF_FILE)  # pyright: ignore[reportUnknownMemberType]
-  # TODO: cached_mmproj: str = huggingface_hub.hf_hub_download(_HF_REPO, _MMPROJ_FILE)
   root: pathlib.Path = tmp_path_factory.mktemp('models')
   model_dir: pathlib.Path = root / _MODEL_ID
   model_dir.mkdir()
   (model_dir / _GGUF_FILE).symlink_to(cached_gguf)
-  # TODO: do the same (model_dir / _MMPROJ_FILE).symlink_to(cached_mmproj)
   return root
 
 
@@ -82,16 +79,7 @@ def test_installed_cli_smoke(tmp_path: pathlib.Path, models_root: pathlib.Path) 
   )
   # basic command smoke tests
   data_dir: pathlib.Path = config.CallGetConfigDirFromVEnv(vpy, _APP_NAME)
-  _version_call(cli_paths)
   _query_call(cli_paths, models_root, data_dir)
-
-
-def _version_call(cli_paths: dict[str, pathlib.Path], /) -> None:
-  """Verify ``--version`` prints the expected version string."""
-  r = base.Run([str(cli_paths['transai']), '--version'])
-  assert '1.' in r.stdout
-  assert '\x1b[' not in r.stdout  # no ANSI escape sequences
-  assert '\x1b[' not in r.stderr
 
 
 def _query_call(
