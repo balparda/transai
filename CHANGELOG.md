@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 - [Changelog](#changelog)
   - [V.V.V - YYYY-MM-DD - Placeholder](#vvv---yyyy-mm-dd---placeholder)
+  - [1.1.0 - 2026-??-?? - Placeholder](#110---2026-----placeholder)
   - [1.0.0 - 2026-04-05](#100---2026-04-05)
 
 This project follows a pragmatic versioning approach:
@@ -24,6 +25,17 @@ This project follows a pragmatic versioning approach:
 
 - Fixed
   - Placeholder for future changes.
+
+## 1.1.0 - 2026-??-?? - Placeholder
+
+- Added
+  - integration test that downloads big model, to run locally (1.0.1)
+
+- Changed
+  - N/A
+
+- Fixed
+  - N/A
 
 ## 1.0.0 - 2026-04-05
 

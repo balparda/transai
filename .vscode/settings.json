@@ -240,6 +240,7 @@
     "scrapy",
     "sdist",
     "shellingham",
+    "SIGABRT",
     "Smol",
     "sphinxcontrib",
     "Spyder",
