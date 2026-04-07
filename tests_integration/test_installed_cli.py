@@ -115,7 +115,8 @@ def _query_call(
         str(models_root),
         '--no-color',
         'query',
-        'capital of france',
+        '"capital of france"',
+        '--free',
       ]
     )
     # The tiny random model produces garbage, but we verify the full CLI

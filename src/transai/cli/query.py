@@ -26,7 +26,7 @@ from transai.core import ai, llama, lms
   ),
 )
 @clibase.CLIErrorGuard
-def IsPrimeCLI(  # documentation is help/epilog/args # noqa: D103
+def Query(  # documentation is help/epilog/args # noqa: D103
   *,
   ctx: click.Context,
   model_input: str = typer.Argument(..., help='Query input string; "user prompt"'),
