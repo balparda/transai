@@ -64,6 +64,8 @@ Usage: transai [OPTIONS] COMMAND [ARGS]...
 │ --kv-cache                              INTEGER RANGE [4<=x<=128]         GGML type for KV-cache keys/values (if supported): determines the precision   │
 │                                                                           level used to store keys/values; default: None (store according to original   │
 │                                                                           precision in model)                                                           │
+│ --timeout                               FLOAT RANGE [1.0<=x<=86400.0]     Timeout in seconds for model loading and calls; default: 5.000 min            │
+│                                                                                                                                         │
 │ --install-completion                                                      Install completion for the current shell.                                     │
 │ --show-completion                                                         Show completion for the current shell, to copy it or customize the            │
 │                                                                           installation.                                                                 │
@@ -112,11 +114,12 @@ Usage: transai query [OPTIONS] MODEL_INPUT
 │ *    model_input      TEXT  Query input string; "user prompt"                                                                                 │
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ --system  -y               TEXT  Prefix prompt; prepend to query; "system prompt"; default: no system prompt                                            │
-│ --images  -i               PATH  A list of image paths to use as input for the model query; default: None, no images                                    │
-│ --tools   -z               TEXT  A list of python methods to use as tools for the model query; default: None, no tools                                  │
-│ --free        --no-free          Unload previous models before loading new ones (LM Studio)? default: False (keep)                    │
-│ --help                           Show this message and exit.                                                                                            │
+│ --system  -y                TEXT  Prefix prompt; prepend to query; "system prompt"; default: no system prompt                                           │
+│ --images  -i                PATH  A list of image paths to use as input for the model query; default: None, no images                                   │
+│ --tools   -z                TEXT  A list of python methods to use as tools for the model query; default: None, no tools                                 │
+│ --free        --no-free           Unload previous models before loading new ones (LM Studio)? default: False (keep)                   │
+│ --metal       --no-metal          Print Metal/llama.cpp verbose internals? default: False (do not print)                             │
+│ --help                            Show this message and exit.                                                                                           │
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
                                                                                                                                                            
  Example:                                                                                                                                                  

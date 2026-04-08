@@ -12,6 +12,7 @@ import typer
 from rich import console as rich_console
 from transcrypto.cli import clibase
 from transcrypto.utils import config as app_config
+from transcrypto.utils import human
 from transcrypto.utils import logging as cli_logging
 
 from transai.core import ai
@@ -36,6 +37,7 @@ class TransAIConfig(clibase.CLIConfig):
   use_mmap: bool
   flash: bool
   kv_cache: int | None
+  timeout: float | None
 
 
 MODELS_ROOT_OPTION: typer.models.OptionInfo = typer.Option(
@@ -176,6 +178,16 @@ KV_CACHE_OPTION: typer.models.OptionInfo = typer.Option(
     'default: None (store according to original precision in model)'
   ),
 )
+TIMEOUT_OPTION: typer.models.OptionInfo = typer.Option(
+  ai.DEFAULT_TIMEOUT,
+  '--timeout',
+  min=1.0,
+  max=24 * 60.0 * 60.0,  # up to 24 hours
+  help=(
+    'Timeout in seconds for model loading and calls; '
+    f'default: {human.HumanizedSeconds(ai.DEFAULT_TIMEOUT)}'
+  ),
+)
 
 
 # CLI app setup, this is an important object and can be imported elsewhere and called
@@ -239,6 +251,7 @@ def Main(  # documentation is help/epilog/args # noqa: D103
   use_mmap: bool = USE_MMAP_OPTION,  # type: ignore[assignment]
   flash: bool = FLASH_OPTION,  # type: ignore[assignment]
   kv_cache: int | None = KV_CACHE_OPTION,  # type: ignore[assignment]
+  timeout: float | None = TIMEOUT_OPTION,  # type: ignore[assignment]
 ) -> None:
   if version:
     typer.echo(__version__)
@@ -269,6 +282,7 @@ def Main(  # documentation is help/epilog/args # noqa: D103
     use_mmap=use_mmap,
     flash=flash,
     kv_cache=kv_cache,
+    timeout=timeout,
   )
   # even though this is a convenient place to print(), beware that this runs even when
   # a subcommand is invoked; so prefer logging.debug/info/warning/error instead of print();

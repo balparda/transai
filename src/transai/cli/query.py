@@ -56,6 +56,11 @@ def Query(  # documentation is help/epilog/args # noqa: D103
     '--free/--no-free',
     help=('Unload previous models before loading new ones (LM Studio)? default: False (keep)'),
   ),
+  metal: bool = typer.Option(
+    False,
+    '--metal/--no-metal',
+    help=('Print Metal/llama.cpp verbose internals? default: False (do not print)'),
+  ),
 ) -> None:
   config: transai.TransAIConfig = ctx.obj
   if not config.lms and not config.models_root:
@@ -64,9 +69,11 @@ def Query(  # documentation is help/epilog/args # noqa: D103
     logging.warning(f'Seed {config.seed} + `--no-free`, but to apply seed we will `--free`')
   with timer.Timer('Model LOAD'):
     worker: ai.AIWorker = (
-      lms.LMStudioWorker(free_resources=free_resources or config.seed is not None)
+      lms.LMStudioWorker(
+        timeout=config.timeout, free_resources=free_resources or config.seed is not None
+      )
       if config.lms
-      else llama.LlamaWorker(config.models_root, verbose=config.verbose < logging.INFO)  # type: ignore[arg-type]
+      else llama.LlamaWorker(config.models_root, timeout=config.timeout, verbose=metal)  # type: ignore[arg-type]
     )
     model_config, _ = worker.LoadModel(
       ai.MakeAIModelConfig(

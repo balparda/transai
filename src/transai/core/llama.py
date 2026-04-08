@@ -96,18 +96,27 @@ class Error(ai.Error):
 class LlamaWorker(ai.AIWorker):
   """AI worker implementation using llama.cpp (llama-cpp-python)."""
 
-  def __init__(self, models_root: pathlib.Path, /, *, verbose: bool = False) -> None:
+  def __init__(
+    self,
+    models_root: pathlib.Path,
+    /,
+    *,
+    timeout: float | None = ai.DEFAULT_TIMEOUT,
+    verbose: bool = False,
+  ) -> None:
     """Initialize the llama.cpp worker.
 
     Args:
       models_root: path to the directory containing the local GGUF models
+      timeout (default=ai.DEFAULT_TIMEOUT): optional timeout in seconds for model loading and calls;
+          if not given, defaults to ai.DEFAULT_TIMEOUT; can be set to None for no timeout
       verbose: whether to enable verbose logging
 
     Raises:
       Error: if the models_root is not a valid directory
 
     """
-    super().__init__()
+    super().__init__(timeout=timeout)
     self._models_root: pathlib.Path = models_root
     self._verbose: bool = verbose
     if not self._models_root:

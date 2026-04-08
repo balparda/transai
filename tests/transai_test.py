@@ -94,6 +94,7 @@ def test_version_flag_raises_exit() -> None:
       use_mmap=True,
       flash=True,
       kv_cache=None,
+      timeout=None,
     )
   assert exc_info.value.exit_code == 0
 

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import abc
 import collections.abc
+import concurrent.futures
 import dataclasses
 import functools
 import json
@@ -18,13 +19,14 @@ import llama_cpp
 import lmstudio
 import pydantic
 from transcrypto.core import hashes, modmath
-from transcrypto.utils import base, saferandom
+from transcrypto.utils import base, human, saferandom
 
 from transai import __version__
 
 _LMSTUDIO_ROOT: pathlib.Path = pathlib.Path('~/.lmstudio/models/').expanduser().resolve()
 DEFAULT_MODELS_ROOT: pathlib.Path | None = _LMSTUDIO_ROOT if _LMSTUDIO_ROOT.is_dir() else None
 
+DEFAULT_TIMEOUT: float = 5 * 60.0  # 5 minutes, just a reasonable default
 AI_CONTEXT_LENGTH = 32 * 1024  # 32k tokens, should be enough for the image and the tags
 AI_MAX_CONTEXT = 2**24  # 16 million tokens, just a sanity check upper bound for validation
 DEFAULT_VISION_MODEL = 'qwen3-vl-32b-instruct@Q8_0'
@@ -140,9 +142,17 @@ def MakeAIModelConfig(**overrides: object) -> AIModelConfig:
 class AIWorker(abc.ABC):
   """Abstract base class for AI worker."""
 
-  def __init__(self) -> None:
-    """Initialize the worker."""
+  def __init__(self, /, *, timeout: float | None = DEFAULT_TIMEOUT) -> None:
+    """Initialize the worker.
+
+    Args:
+      timeout (default=DEFAULT_TIMEOUT): optional timeout in seconds for model loading and calls;
+          if not given, defaults to DEFAULT_TIMEOUT; can be set to None for no timeout
+
+    """
     self._loaded_models: _LoadedModelsDict = {}
+    self._timeout: float | None = timeout
+    logging.info(f'AI timeout set to {human.HumanizedSeconds(timeout) if timeout else "None"}')
 
   @final
   def __enter__(self) -> Self:
@@ -172,6 +182,36 @@ class AIWorker(abc.ABC):
         logging.info(f'Releasing model {model_id!r}')
         loaded.model.close()  # type: ignore[union-attr]
     self._loaded_models.clear()
+
+  @final
+  def _RunWithTimeout[T](self, func: collections.abc.Callable[[], T], /, *, description: str) -> T:
+    """Run a callable with a timeout, raising Error if it takes too long.
+
+    Args:
+      func: a zero-argument callable to run; bind any arguments before passing
+      description: human-readable description used in the timeout error message
+
+    Returns:
+      the return value of `func`
+
+    Raises:
+      Error: if the operation exceeds `self._timeout` seconds
+
+    """
+    if self._timeout is None:
+      return func()
+    pool: concurrent.futures.ThreadPoolExecutor = concurrent.futures.ThreadPoolExecutor(
+      max_workers=1
+    )
+    future: concurrent.futures.Future[T] = pool.submit(func)
+    try:
+      result: T = future.result(timeout=self._timeout)
+    except concurrent.futures.TimeoutError as err:
+      pool.shutdown(wait=False, cancel_futures=True)
+      raise Error(f'{description} timed out after {human.HumanizedSeconds(self._timeout)}') from err
+    else:
+      pool.shutdown(wait=False)
+      return result
 
   @final
   def _RegisterModel(self, model: LoadedModel, /) -> None:
@@ -220,7 +260,7 @@ class AIWorker(abc.ABC):
       )
 
     Raises:
-      Error: on loading errors
+      Error: on loading errors, including if the operation exceeds the configured timeout
 
     """
     if not force and config['seed'] is not None:
@@ -245,7 +285,12 @@ class AIWorker(abc.ABC):
       return (existing.config.copy(), dict(existing.metadata))
     # otherwise, we need to load the model which will be done by the subclass implementations
     try:
-      new_model: LoadedModel = self._LoadNew(config)
+      new_model: LoadedModel = self._RunWithTimeout(
+        lambda: self._LoadNew(config),
+        description=f'Loading model {config["model_id"]!r}',
+      )
+    except Error:
+      raise  # re-raise timeout errors (and other Error subclasses) as-is
     except Exception as err:
       # convert generic exceptions to our Error type for better error handling and debugging
       raise Error(f'Error loading model {config["model_id"]!r}') from err
@@ -344,8 +389,8 @@ class AIWorker(abc.ABC):
       the model output, either as a raw string or parsed into the given `output_format` class
 
     Raises:
-      Error: if the `model_id` is not found, if the model does not support the given inputs, or
-          if there is any error calling the model
+      Error: if the `model_id` is not found, if the model does not support the given inputs,
+          if there is any error calling the model, or if the call exceeds the configured timeout
 
     """
     if model_id not in self._loaded_models:
@@ -365,17 +410,22 @@ class AIWorker(abc.ABC):
       new_seed = base.BytesToInt(loaded.seed_state) % AI_MAX_SEED  # (AI_MAX_SEED is prime)
     logging.info(f'Calling {model_id!r} @{new_seed} ({loaded.seed_state.hex()})')
     try:
-      return self._Call(
-        loaded,
-        system_prompt,
-        user_prompt,
-        output_format,
-        new_seed,
-        images=images,
-        tools=[_GetCallable(t) for t in tools] if tools else None,
+      return self._RunWithTimeout(
+        lambda: self._Call(
+          loaded,
+          system_prompt,
+          user_prompt,
+          output_format,
+          new_seed,
+          images=images,
+          tools=[_GetCallable(t) for t in tools] if tools else None,
+        ),
+        description=f'Calling model {model_id!r}',
       )
     except json.JSONDecodeError as err:
       raise Error(f'Model {model_id!r} returned invalid JSON output') from err
+    except Error:
+      raise  # re-raise timeout errors (and other Error subclasses) as-is
     except Exception as err:
       # convert generic exceptions to our Error type for better error handling and debugging
       raise Error(f'Error calling model {model_id!r}') from err

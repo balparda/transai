@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import math
 import pathlib
+import threading
 from unittest import mock
 
 import llama_cpp
@@ -671,3 +672,81 @@ def testGetCallableRaisesOnNonCallable() -> None:
   # os.sep is a string (path separator), not callable
   with pytest.raises(ai.Error, match='not callable'):
     ai._GetCallable('os.sep')
+
+
+# ---------------------------------------------------------------------------
+# AIWorker._RunWithTimeout
+# ---------------------------------------------------------------------------
+
+
+def testRunWithTimeoutNoTimeoutCallsFuncDirectly() -> None:
+  """_RunWithTimeout with timeout=None calls func directly (no thread spawned)."""
+  w = _ConcreteWorker()
+  w._timeout = None
+  calls: list[int] = []
+
+  def _track() -> str:
+    calls.append(1)
+    return 'result'
+
+  result: str = w._RunWithTimeout(_track, description='test')
+  assert result == 'result'
+  assert calls == [1]
+
+
+def testRunWithTimeoutReturnsValueWhenCompletesInTime() -> None:
+  """_RunWithTimeout returns the function value when it completes within the timeout."""
+  w = _ConcreteWorker()
+  w._timeout = 30.0  # generous timeout
+  result: str = w._RunWithTimeout(lambda: 'done', description='fast op')
+  assert result == 'done'
+
+
+def testRunWithTimeoutRaisesOnTimeout() -> None:
+  """_RunWithTimeout raises Error with message when the timeout fires."""
+  w = _ConcreteWorker()
+  w._timeout = 0.05  # 50 ms
+  unblock = threading.Event()
+
+  def _block() -> None:
+    unblock.wait(timeout=30.0)
+
+  try:
+    with pytest.raises(ai.Error, match=r'timed out after 50\.000 ms'):
+      w._RunWithTimeout(_block, description='blocking operation')
+  finally:
+    unblock.set()  # release the background thread before exiting
+
+
+def testRunWithTimeoutPropagatesExceptionFromFunc() -> None:
+  """_RunWithTimeout re-raises exceptions raised inside func."""
+  w = _ConcreteWorker()
+  w._timeout = 30.0
+
+  def _raise() -> str:
+    raise ValueError('inner error')
+
+  with pytest.raises(ValueError, match='inner error'):
+    w._RunWithTimeout(_raise, description='failing op')
+
+
+def testLoadModelRaisesOnTimeout() -> None:
+  """LoadModel() propagates timeout Error raised by _RunWithTimeout."""
+  w = _ConcreteWorker()
+  w._timeout = 1.0
+  with (
+    mock.patch.object(w, '_RunWithTimeout', side_effect=ai.Error('loading model timed out')),
+    pytest.raises(ai.Error, match='timed out'),
+  ):
+    w.LoadModel(ai.MakeAIModelConfig())
+
+
+def testModelCallRaisesOnTimeout() -> None:
+  """ModelCall() propagates timeout Error raised by _RunWithTimeout."""
+  w = _ConcreteWorker()
+  w._loaded_models[ai.DEFAULT_TEXT_MODEL] = _MakeLlamaModel()
+  with (
+    mock.patch.object(w, '_RunWithTimeout', side_effect=ai.Error('calling model timed out')),
+    pytest.raises(ai.Error, match='timed out'),
+  ):
+    w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str)

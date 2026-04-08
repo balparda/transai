@@ -20,6 +20,7 @@ This project follows a pragmatic versioning approach:
 - Added
   - Tool calling support in both `LMStudioWorker` (via `_CallLMSAct`) and `LlamaWorker` (via `_CallLlamaAct`): models that support function calling can now invoke Python callables passed via the `tools` parameter of `ModelCall()`
   - `--tools` CLI option added to the `query` command: pass one or more fully-qualified Python callable names (e.g., `--tools math.gcd --tools os.getcwd`)
+  - `LoadModel()` and `ModelCall()` now enforce a `--timeout` option
 
 - Changed
   - Placeholder for future changes.

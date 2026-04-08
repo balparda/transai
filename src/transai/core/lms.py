@@ -22,10 +22,14 @@ class Error(ai.Error):
 class LMStudioWorker(ai.AIWorker):
   """AI worker implementation using LMStudio."""
 
-  def __init__(self, free_resources: bool = True) -> None:
+  def __init__(
+    self, /, *, timeout: float | None = ai.DEFAULT_TIMEOUT, free_resources: bool = True
+  ) -> None:
     """Connect to LM Studio API server, do some checks, unload existing models.
 
     Args:
+      timeout (default=ai.DEFAULT_TIMEOUT): optional timeout in seconds for model loading and calls;
+          if not given, defaults to ai.DEFAULT_TIMEOUT; can be set to None for no timeout
       free_resources: whether to unload all currently loaded LLMs to free VRAM/RAM before loading
           any models; without this, loading a large model on top of others will likely exhaust
           system resources, but setting this to False may be useful if you want to speed up
@@ -35,7 +39,7 @@ class LMStudioWorker(ai.AIWorker):
           if the found API server is not on a loopback address (potential security risk)
 
     """
-    super().__init__()
+    super().__init__(timeout=timeout)
     logging.info('Starting LM Studio (lms) connection, configs, checks...')
     if (api_host := lmstudio.Client.find_default_local_api_host()) is None:
       raise Error('No LM Studio API server instance found on any of the default local ports')
@@ -46,7 +50,9 @@ class LMStudioWorker(ai.AIWorker):
         'this may be a security risk if the server is not properly firewalled'
       )
     logging.info(f'LM Studio @ {api_host}')
-    lmstudio.set_sync_api_timeout(None)  # None is infinite timeout
+    # Set lmstudio internal timeout to None (infinite): our _RunWithTimeout wrapper in AIWorker
+    # handles the overall timeout, so we don't want a conflicting per-request internal timeout
+    lmstudio.set_sync_api_timeout(None)
     self._api_host: str = api_host
     self._client: lmstudio.Client = lmstudio.Client(api_host)
     # unload all currently loaded LLMs to free VRAM/RAM before loading our model;
