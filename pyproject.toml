@@ -12,7 +12,7 @@ build-backend = "poetry.core.masonry.api"
 [project]
 
 name = "transai"
-version = "1.0.2"  # also update src/transai/__init__.py
+version = "1.1.0"  # also update src/transai/__init__.py
 
 description = "AI library and helpers (Python/Poetry/Typer - LM Studio & llama.cpp)"
 license = "Apache-2.0"
@@ -54,6 +54,7 @@ dependencies = [
   "Pillow>=12.2",
   "pydantic>=2.12",
   "tqdm>=4.67",
+  "func-timeout>=4.3",
 
   # the supported backends
   "llama-cpp-python>=0.3.20",

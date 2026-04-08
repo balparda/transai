@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 - [Changelog](#changelog)
   - [V.V.V - YYYY-MM-DD - Placeholder](#vvv---yyyy-mm-dd---placeholder)
-  - [1.1.0 - 2026-??-?? - Placeholder](#110---2026-----placeholder)
+  - [1.1.0 - 2026-04-08](#110---2026-04-08)
   - [1.0.0 - 2026-04-05](#100---2026-04-05)
 
 This project follows a pragmatic versioning approach:
@@ -18,26 +18,28 @@ This project follows a pragmatic versioning approach:
 ## V.V.V - YYYY-MM-DD - Placeholder
 
 - Added
+  - Placeholder for future changes.
+
+- Changed
+  - Placeholder for future changes.
+
+- Fixed
+  - Placeholder for future changes.
+
+## 1.1.0 - 2026-04-08
+
+- Added
   - Tool calling support in both `LMStudioWorker` (via `_CallLMSAct`) and `LlamaWorker` (via `_CallLlamaAct`): models that support function calling can now invoke Python callables passed via the `tools` parameter of `ModelCall()`
   - `--tools` CLI option added to the `query` command: pass one or more fully-qualified Python callable names (e.g., `--tools math.gcd --tools os.getcwd`)
   - `LoadModel()` and `ModelCall()` now enforce a `--timeout` option
-
-- Changed
-  - Placeholder for future changes.
-
-- Fixed
-  - Placeholder for future changes.
-
-## 1.1.0 - 2026-??-?? - Placeholder
-
-- Added
   - integration test that downloads big model, to run locally (1.0.1)
 
 - Changed
-  - load() and call() model will catch Exception and raise Error
+  - better timers
+  - better logging
 
 - Fixed
-  - N/A
+  - load() and call() model will catch Exception and raise Error
 
 ## 1.0.0 - 2026-04-05
 

@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import abc
 import collections.abc
-import concurrent.futures
 import dataclasses
 import functools
 import json
@@ -15,11 +14,13 @@ import pathlib
 import re
 from typing import Any, Self, TypedDict, final
 
+import func_timeout  # we did our own stubs...
+import func_timeout.exceptions
 import llama_cpp
 import lmstudio
 import pydantic
 from transcrypto.core import hashes, modmath
-from transcrypto.utils import base, human, saferandom
+from transcrypto.utils import base, human, saferandom, timer
 
 from transai import __version__
 
@@ -184,36 +185,6 @@ class AIWorker(abc.ABC):
     self._loaded_models.clear()
 
   @final
-  def _RunWithTimeout[T](self, func: collections.abc.Callable[[], T], /, *, description: str) -> T:
-    """Run a callable with a timeout, raising Error if it takes too long.
-
-    Args:
-      func: a zero-argument callable to run; bind any arguments before passing
-      description: human-readable description used in the timeout error message
-
-    Returns:
-      the return value of `func`
-
-    Raises:
-      Error: if the operation exceeds `self._timeout` seconds
-
-    """
-    if self._timeout is None:
-      return func()
-    pool: concurrent.futures.ThreadPoolExecutor = concurrent.futures.ThreadPoolExecutor(
-      max_workers=1
-    )
-    future: concurrent.futures.Future[T] = pool.submit(func)
-    try:
-      result: T = future.result(timeout=self._timeout)
-    except concurrent.futures.TimeoutError as err:
-      pool.shutdown(wait=False, cancel_futures=True)
-      raise Error(f'{description} timed out after {human.HumanizedSeconds(self._timeout)}') from err
-    else:
-      pool.shutdown(wait=False)
-      return result
-
-  @final
   def _RegisterModel(self, model: LoadedModel, /) -> None:
     """Register a loaded model in the worker's internal state.
 
@@ -284,19 +255,23 @@ class AIWorker(abc.ABC):
       existing = self._loaded_models[reduced]
       return (existing.config.copy(), dict(existing.metadata))
     # otherwise, we need to load the model which will be done by the subclass implementations
-    try:
-      new_model: LoadedModel = self._RunWithTimeout(
-        lambda: self._LoadNew(config),
-        description=f'Loading model {config["model_id"]!r}',
-      )
-    except Error:
-      raise  # re-raise timeout errors (and other Error subclasses) as-is
-    except Exception as err:
-      # convert generic exceptions to our Error type for better error handling and debugging
-      raise Error(f'Error loading model {config["model_id"]!r}') from err
-    self._loaded_models[new_model.model_id] = new_model
-    logging.info(f'Loaded {new_model.model_id!r}: {new_model.config!r} / {new_model.metadata!r}')
-    return (new_model.config.copy(), dict(new_model.metadata))
+    with timer.Timer(f'Model {config["model_id"]!r} load') as load_timer:
+      try:
+        new_model: LoadedModel = (
+          self._LoadNew(config)
+          if self._timeout is None
+          else func_timeout.func_timeout(self._timeout, self._LoadNew, args=[config])
+        )
+        self._loaded_models[new_model.model_id] = new_model
+        logging.info(
+          f'Loaded {new_model.model_id!r}: {new_model.config!r} / {new_model.metadata!r}'
+        )
+        return (new_model.config.copy(), dict(new_model.metadata))
+      except func_timeout.exceptions.FunctionTimedOut as err:
+        raise Error(f'Model {config["model_id"]!r} load timed out @{load_timer}') from err
+      except Exception as err:
+        # convert generic exceptions to our Error type for better error handling and debugging
+        raise Error(f'Model {config["model_id"]!r} load error @{load_timer}') from err
 
   @abc.abstractmethod
   def _LoadNew(self, config: AIModelConfig, /) -> LoadedModel:
@@ -409,26 +384,22 @@ class AIWorker(abc.ABC):
       loaded.seed_state = hashes.Hash256(loaded.seed_state)  # S <- SHA256(S)
       new_seed = base.BytesToInt(loaded.seed_state) % AI_MAX_SEED  # (AI_MAX_SEED is prime)
     logging.info(f'Calling {model_id!r} @{new_seed} ({loaded.seed_state.hex()})')
-    try:
-      return self._RunWithTimeout(
-        lambda: self._Call(
-          loaded,
-          system_prompt,
-          user_prompt,
-          output_format,
-          new_seed,
-          images=images,
-          tools=[_GetCallable(t) for t in tools] if tools else None,
-        ),
-        description=f'Calling model {model_id!r}',
-      )
-    except json.JSONDecodeError as err:
-      raise Error(f'Model {model_id!r} returned invalid JSON output') from err
-    except Error:
-      raise  # re-raise timeout errors (and other Error subclasses) as-is
-    except Exception as err:
-      # convert generic exceptions to our Error type for better error handling and debugging
-      raise Error(f'Error calling model {model_id!r}') from err
+    with timer.Timer(f'Model {model_id!r} call') as call_timer:
+      try:
+        args = [loaded, system_prompt, user_prompt, output_format, new_seed]
+        kwargs = {'images': images, 'tools': [_GetCallable(t) for t in tools] if tools else None}
+        return (  # type: ignore[no-any-return]
+          self._Call(*args, **kwargs)  # type: ignore[arg-type]
+          if self._timeout is None
+          else func_timeout.func_timeout(self._timeout, self._Call, args=args, kwargs=kwargs)  # type: ignore[arg-type]
+        )
+      except json.JSONDecodeError as err:
+        raise Error(f'Model {model_id!r} call returned invalid JSON output @{call_timer}') from err
+      except func_timeout.exceptions.FunctionTimedOut as err:
+        raise Error(f'Model {model_id!r} call timed out @{call_timer}') from err
+      except Exception as err:
+        # convert generic exceptions to our Error type for better error handling and debugging
+        raise Error(f'Model {model_id!r} call error @{call_timer}') from err
 
   @abc.abstractmethod
   def _Call[T: pydantic.BaseModel | str](

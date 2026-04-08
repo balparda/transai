@@ -3,5 +3,5 @@
 """<Module name / short purpose>."""
 
 __all__: list[str] = ['__author__', '__version__']
-__version__ = '1.0.2'  # also update pyproject.toml
+__version__ = '1.1.0'  # also update pyproject.toml
 __author__ = 'Daniel Balparda <balparda@github.com>'

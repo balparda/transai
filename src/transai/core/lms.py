@@ -40,6 +40,7 @@ class LMStudioWorker(ai.AIWorker):
 
     """
     super().__init__(timeout=timeout)
+    # start connection
     logging.info('Starting LM Studio (lms) connection, configs, checks...')
     if (api_host := lmstudio.Client.find_default_local_api_host()) is None:
       raise Error('No LM Studio API server instance found on any of the default local ports')
@@ -50,8 +51,7 @@ class LMStudioWorker(ai.AIWorker):
         'this may be a security risk if the server is not properly firewalled'
       )
     logging.info(f'LM Studio @ {api_host}')
-    # Set lmstudio internal timeout to None (infinite): our _RunWithTimeout wrapper in AIWorker
-    # handles the overall timeout, so we don't want a conflicting per-request internal timeout
+    # set lmstudio internal timeout to None (infinite): AIWorker handles the overall timeout
     lmstudio.set_sync_api_timeout(None)
     self._api_host: str = api_host
     self._client: lmstudio.Client = lmstudio.Client(api_host)
