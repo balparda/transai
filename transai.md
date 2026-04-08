@@ -64,7 +64,8 @@ Usage: transai [OPTIONS] COMMAND [ARGS]...
 │ --kv-cache                              INTEGER RANGE [4<=x<=128]         GGML type for KV-cache keys/values (if supported): determines the precision   │
 │                                                                           level used to store keys/values; default: None (store according to original   │
 │                                                                           precision in model)                                                           │
-│ --timeout                               FLOAT RANGE [1.0<=x<=86400.0]     Timeout in seconds for model loading and calls; default: 5.000 min            │
+│ --timeout                               FLOAT RANGE [0.0<=x<=86400.0]     Timeout, in seconds, for AI calls; zero, or <1s, means no timeout (infinite); │
+│                                                                           default: 300.0 seconds                                                        │
 │                                                                                                                                         │
 │ --install-completion                                                      Install completion for the current shell.                                     │
 │ --show-completion                                                         Show completion for the current shell, to copy it or customize the            │
