@@ -11,6 +11,7 @@ import functools
 import json
 import logging
 import pathlib
+import re
 from typing import Any, Self, TypedDict, final
 
 import llama_cpp
@@ -33,6 +34,9 @@ assert modmath.IsPrime(AI_MAX_SEED), 'AI_MAX_SEED prime for better seed distribu
 DEFAULT_GPU_RATIO = 0.8
 DEFAULT_TEMPERATURE = 0.15
 MAX_TEMPERATURE = 2.0
+
+RE_THINK: re.Pattern[str] = re.compile(r'<think>(.*?)</think>', flags=re.DOTALL)
+RE_TOOL_CALL: re.Pattern[str] = re.compile(r'<tool_call>(.*?)</tool_call>', flags=re.DOTALL)
 
 
 class Error(base.Error):
@@ -96,7 +100,8 @@ class LoadedModel:
 
 type AIModelMetadata = base.JSONDict  # metadata about the loaded model
 type AIImageInput = bytes | pathlib.Path | str
-type AIToolInput = collections.abc.Callable[..., Any]
+type AnyCallable = collections.abc.Callable[..., Any]
+type AIToolInput = str | AnyCallable
 type _SupportedModelObject = llama_cpp.Llama | lmstudio.LLM  # supported backends actual model type
 type _LoadedModelsDict = dict[str, LoadedModel]
 _LLM_REQUIRING_CLOSE_METHOD: tuple[type[_SupportedModelObject], ...] = (llama_cpp.Llama,)
@@ -361,7 +366,13 @@ class AIWorker(abc.ABC):
     logging.info(f'Calling {model_id!r} @{new_seed} ({loaded.seed_state.hex()})')
     try:
       return self._Call(
-        loaded, system_prompt, user_prompt, output_format, new_seed, images=images, tools=tools
+        loaded,
+        system_prompt,
+        user_prompt,
+        output_format,
+        new_seed,
+        images=images,
+        tools=[_GetCallable(t) for t in tools] if tools else None,
       )
     except json.JSONDecodeError as err:
       raise Error(f'Model {model_id!r} returned invalid JSON output') from err
@@ -380,7 +391,7 @@ class AIWorker(abc.ABC):
     /,
     *,
     images: list[AIImageInput] | None = None,
-    tools: list[AIToolInput] | None = None,
+    tools: list[AnyCallable] | None = None,
   ) -> T:
     """Make a call to the model.
 
@@ -404,3 +415,35 @@ class AIWorker(abc.ABC):
       Error: if the model does not support the given inputs, or if there is any error calling
 
     """
+
+
+def _GetCallable(tool: AIToolInput) -> AnyCallable:
+  """Convert a tool input (string or callable) into a callable function.
+
+  Args:
+    tool: the tool input, either a callable function or a string; the string should be a fully
+        qualified name of a function, like e.g. 'math.gcd' or 'os.path.join', anything that
+        can be imported and resolved to a callable function from this package
+
+  Returns:
+    a callable function corresponding to the tool input
+
+  Raises:
+    Error: if the tool input is a string but cannot be converted to a callable function
+
+  """
+  # if it's already a callable, just return it
+  if callable(tool):
+    return tool
+  # otherwise, it should be a string that we need to resolve to a callable function
+  func: Any
+  try:
+    module_path, func_name = tool.rsplit('.', 1)
+    # load module and get function; this will raise an exception if it fails
+    module = __import__(module_path, fromlist=[func_name])
+    func = getattr(module, func_name)
+  except (ImportError, AttributeError) as err:
+    raise Error(f'Error resolving tool name {tool!r} to a callable function') from err
+  if not func or not callable(func):
+    raise Error(f'Tool {tool!r} resolved to {func!r} which is not callable')
+  return func  # type: ignore[no-any-return]

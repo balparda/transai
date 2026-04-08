@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import logging
-import re
 from typing import cast
 
 import lmstudio
@@ -14,8 +13,6 @@ from transcrypto.core import hashes
 from transcrypto.utils import base
 
 from transai.core import ai
-
-_RE_THINK: re.Pattern[str] = re.compile(r'<think>.*?</think>', flags=re.DOTALL)
 
 
 class Error(ai.Error):
@@ -149,7 +146,7 @@ class LMStudioWorker(ai.AIWorker):
     /,
     *,
     images: list[ai.AIImageInput] | None = None,
-    tools: list[ai.AIToolInput] | None = None,
+    tools: list[ai.AnyCallable] | None = None,
   ) -> T:
     """Make a call to the model.
 
@@ -228,7 +225,7 @@ def _CallLMSAct(
   llm: lmstudio.LLM,
   chat: lmstudio.Chat,
   config: lmstudio.LlmPredictionConfigDict,
-  tools: list[ai.AIToolInput],
+  tools: list[ai.AnyCallable],
 ) -> str:
   """Call the LMStudio LLM using the Act API to support tool use.
 
@@ -251,7 +248,7 @@ def _CallLMSAct(
       if isinstance(content, lmstudio.TextData):
         logging.debug(f'Model returned text content: {content.text!r}')
         # remove <think>...</think> part, if present
-        all_content: str = _RE_THINK.sub('', content.text).strip()
+        all_content: str = ai.RE_THINK.sub('', content.text).strip()
         if all_content:
           messages.append(all_content)
       elif isinstance(content, lmstudio.FileHandle):
