@@ -287,7 +287,6 @@ class LlamaWorker(ai.AIWorker):
       # text-only user message, so add the rest
       messages.append({'role': 'user', 'content': user_prompt})
     # call the model
-    logging.debug(f'Calling llama.cpp model {model.model_id!r} ({len(messages)} messages)')
     try:
       result: llama_types.CreateChatCompletionResponse
       llm: llama_cpp.Llama = cast('llama_cpp.Llama', model.model)
@@ -318,6 +317,9 @@ class LlamaWorker(ai.AIWorker):
         schema = output_format.model_json_schema()  # type: ignore[attr-defined]
         schema.pop('$defs', None)  # pyright: ignore[reportUnknownMemberType]
         schema.pop('title', None)  # pyright: ignore[reportUnknownMemberType]
+      logging.debug(
+        f'Calling AI {output_format}/{call_seed} config {model.config!r}:\n{messages!r}'
+      )
       with _SuppressNativeOutput(not self._verbose):
         result = llm.create_chat_completion(  # type: ignore[assignment]
           messages=messages,  # type: ignore[arg-type]
@@ -499,14 +501,11 @@ def _CallLlamaAct(
   Returns:
     concatenated text content produced by the model across all rounds, joined by newlines
 
-  Raises:
-    Error: if the model calls an unknown tool, a tool raises an exception, or the
-        response has an unexpected structure
-
   """
   accumulated: list[str] = []
   result: llama_types.CreateChatCompletionResponse
   while True:
+    logging.debug(f'Calling AI TOOL/{call_seed} config {config!r}/{tool_defs!r}:\n{messages!r}')
     with _SuppressNativeOutput(not verbose):
       result = llm.create_chat_completion(  # type: ignore[assignment]
         messages=messages,  # type: ignore[arg-type]
@@ -518,11 +517,7 @@ def _CallLlamaAct(
         seed=call_seed,
       )
     # parse the model response
-    choices: list[llama_cpp.ChatCompletionResponseChoice] = result.get('choices', [])
-    if not choices:
-      raise Error('Model returned no choices during tool-use loop')
-    logging.debug(f'Model returned: {choices[0]!r}')
-    content, tool_calls = _DetectToolHandler(config['model_id'])(choices[0])  # type: ignore[arg-type]
+    content, tool_calls = _DetectToolHandler(config['model_id'])(_ExtractContent(result))  # type: ignore[arg-type]
     # record the assistant message (with tool_calls) in the conversation history
     if content:
       accumulated.append(content)
@@ -536,44 +531,19 @@ def _CallLlamaAct(
       }
     )
     _ExecuteToolCalls(tool_calls, tool_map, messages)  # execute calls, append results
-  # ended back-and-forth between model and tools; log tokens and return accumulated content
-  if usage := result.get('usage'):
-    logging.debug(
-      'Tokens: prompt=%d, completion=%d, total=%d',
-      usage.get('prompt_tokens', 0),
-      usage.get('completion_tokens', 0),
-      usage.get('total_tokens', 0),
-    )
+  # ended back-and-forth between model and tools; return accumulated content
   return '\n'.join(accumulated)
 
 
-def _QwenDecode(choice: JSONDict) -> tuple[str | None, list[JSONDict]]:
-  if (finish_reason := choice.get('finish_reason')) != 'stop':
-    raise Error(f'Unexpected finish_reason={finish_reason!r} in Qwen tool-use response')
-  message: JSONDict = choice.get('message', {})  # type: ignore[assignment]
-  content: str = cast('str', message.get('content', '')).strip()
-  all_content: str = ai.RE_THINK.sub('', content).strip()
-  tool_parts: list[str] = [part.strip() for part in ai.RE_TOOL_CALL.findall(all_content)]
-  all_content = ai.RE_TOOL_CALL.sub('', all_content).strip()
+def _QwenDecode(content: str) -> tuple[str | None, list[JSONDict]]:
+  tool_parts: list[str] = [part.strip() for part in ai.RE_TOOL_CALL.findall(content)]
+  all_content = ai.RE_TOOL_CALL.sub('', content).strip()
   return (all_content or None, [{'id': _ToolID(), 'function': json.loads(t)} for t in tool_parts])
-
-
-def _DefaultDecode(choice: JSONDict) -> tuple[str | None, list[JSONDict]]:
-  # TODO: this code is not battle-tested
-  message: JSONDict = choice.get('message', {})  # type: ignore[assignment]
-  content: str = cast('str', message.get('content', '')).strip()
-  if (finish_reason := choice.get('finish_reason')) != 'tool_calls':
-    return (content or None, [])  # no more tool calls, return content as final response
-  # process tool calls: execute each and feed the results back into the conversation
-  tool_calls: list[JSONDict] = message.get('tool_calls') or []  # type: ignore[assignment]
-  if not tool_calls:
-    raise Error(f'Model returned finish_reason={finish_reason!r} but no tool_calls in message')
-  return (content or None, tool_calls)
 
 
 # Map of GGUF metadata hints to tool chat-handler classes; first match wins.
 _MODEL_TOOL_DECODERS: list[
-  tuple[tuple[str, ...], collections.abc.Callable[[JSONDict], tuple[str | None, list[JSONDict]]]]
+  tuple[tuple[str, ...], collections.abc.Callable[[str], tuple[str | None, list[JSONDict]]]]
 ] = [
   (('qwen2', 'qwen3'), _QwenDecode),
 ]
@@ -581,7 +551,7 @@ _MODEL_TOOL_DECODERS: list[
 
 def _DetectToolHandler(
   metadata_text: str, /
-) -> collections.abc.Callable[[JSONDict], tuple[str | None, list[JSONDict]]]:
+) -> collections.abc.Callable[[str], tuple[str | None, list[JSONDict]]]:
   """Choose the best tool tool-handler from GGUF metadata.
 
   Args:
@@ -590,11 +560,14 @@ def _DetectToolHandler(
   Returns:
     handler class, or ``None`` if nothing matched
 
+  Raises:
+    Error: not found
+
   """
   for hints, handler_cls in _MODEL_TOOL_DECODERS:
     if any(h in metadata_text for h in hints):
       return handler_cls
-  return _DefaultDecode
+  raise Error(f'Model metadata does not match any known tool-handling patterns: {metadata_text!r}')
 
 
 def _ExecuteToolCalls(
@@ -659,7 +632,7 @@ def _ExtractContent(result: llama_types.CreateChatCompletionResponse, /) -> str:
   """Pull text content from a chat completion response.
 
   Args:
-    result: raw response from ``create_chat_completion``
+    result: raw response from LLM
 
   Returns:
     the text content string
@@ -668,20 +641,24 @@ def _ExtractContent(result: llama_types.CreateChatCompletionResponse, /) -> str:
     Error: if the response contains no choices or empty content
 
   """
+  # get 1st choice
   choices: list[Any] = result.get('choices', [])
   if not choices:
     raise Error('Model returned no choices')
-  content: str | None = choices[0].get('message', {}).get('content')
-  finish_reason: str | None = choices[0].get('finish_reason')
+  # check that reason is 'stop' (finished normally)
+  if (finish_reason := choices[0].get('finish_reason', '')) != 'stop':
+    raise Error(f'Model returned finish_reason={finish_reason!r}, expected "stop"')
+  # extract content
+  content: str = choices[0].get('message', {}).get('content', '').strip()
   if not content:
     raise Error(f'Model returned empty content (finish_reason={finish_reason!r})')
-  if finish_reason not in {'stop', 'length'}:
-    raise Error(f'Model returned finish_reason={finish_reason!r}, expected "stop" or "length"')
+  # log
+  logging.debug(f'Model response content:\n{content!r}')
   if usage := result.get('usage'):
     logging.debug(
-      'Tokens: prompt=%d, completion=%d, total=%d',
-      usage.get('prompt_tokens', 0),
-      usage.get('completion_tokens', 0),
-      usage.get('total_tokens', 0),
+      f'Tokens: prompt={usage.get("prompt_tokens", 0)}, '
+      f'completion={usage.get("completion_tokens", 0)}, '
+      f'total={usage.get("total_tokens", 0)}',
     )
-  return content
+  # now that we logged we clean <think> content, if any
+  return ai.RE_THINK.sub('', content).strip()

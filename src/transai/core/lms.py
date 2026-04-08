@@ -194,7 +194,9 @@ class LMStudioWorker(ai.AIWorker):
       images=[lmstudio.prepare_image(b) for b in images] if images else None,  # type: ignore[arg-type]
     )
     # call the model
-    logging.debug(f'Calling AI with config {config!r} and chat {chat!r}')
+    logging.debug(  # do not repr chat
+      f'Calling AI {output_format} /{call_seed} config {config!r}/{tools!r}:\n{chat}'
+    )
     llm: lmstudio.LLM = cast('lmstudio.LLM', model.model)
     try:
       if tools:
@@ -204,7 +206,11 @@ class LMStudioWorker(ai.AIWorker):
         return _CallLMSAct(llm, chat, config, tools)  # type: ignore[return-value]
       # this is a normal call without tools: call, parse and return the result
       result: lmstudio.PredictionResult = _CallLMSRespond(llm, chat, config, output_format)
-      return result.content if output_format is str else output_format.model_validate(result.parsed)  # type: ignore[return-value,attr-defined]
+      return (
+        ai.RE_THINK.sub('', result.content).strip()  # remove any <think>...</think> part
+        if output_format is str  # type: ignore[return-value]
+        else output_format.model_validate(result.parsed)  # type: ignore[attr-defined]
+      )
     except lmstudio.LMStudioServerError as err:
       raise Error(f'Error calling model {model.model_id!r}: {err}') from err
 
@@ -221,8 +227,10 @@ def _CallLMSRespond(
     response_format=None if output_format is str else output_format,
   )
   # log and check results
-  logging.debug('Predicted tokens: %d', result.stats.predicted_tokens_count)
-  logging.debug('Time to first token (seconds): %f', result.stats.time_to_first_token_sec)
+  logging.debug(
+    f'Predicted {result.stats.predicted_tokens_count} tokens '
+    f'in {result.stats.time_to_first_token_sec} sec to first token:\n{result.content!r}'
+  )
   if result.stats.stop_reason != 'eosFound':
     raise Error(f'Unexpected stop reason {result.stats.stop_reason!r} while calling LMS')
   return result
