@@ -45,6 +45,12 @@ def Query(  # documentation is help/epilog/args # noqa: D103
     readable=True,
     help=('A list of image paths to use as input for the model query; default: None, no images'),
   ),
+  tools: list[str] | None = typer.Option(  # noqa: B008
+    None,
+    '-z',
+    '--tools',
+    help=('A list of python methods to use as tools for the model query; default: None, no tools'),
+  ),
   free_resources: bool = typer.Option(
     False,
     '--free/--no-free',
@@ -85,5 +91,6 @@ def Query(  # documentation is help/epilog/args # noqa: D103
       model_input.strip(),
       str,
       images=list(images) if images else None,
+      tools=tools,  # type: ignore[arg-type]
     )
   config.console.print(response)

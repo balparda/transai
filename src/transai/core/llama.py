@@ -605,7 +605,7 @@ def _ExecuteToolCalls(
     Error: if the model calls an unknown tool, the arguments are invalid JSON,
         or the tool callable raises an exception
 
-  """
+  """  # noqa: DOC501
   # loop over the tool calls in the order given by the model, execute them, and append results
   for tc in tool_calls:
     # get tool name and arguments
@@ -622,8 +622,16 @@ def _ExecuteToolCalls(
     # we should be good to execute now; log the call and arguments for debugging
     args_repr: str = ', '.join(f'{k}={v!r}' for k, v in args.items())
     logging.debug(f'Calling tool {func_name}({args_repr}) -> {call_id}')
+    tool_result: Any
     try:
-      tool_result: Any = tool_map[func_name](**args)
+      try:
+        tool_result = tool_map[func_name](**args)
+      except TypeError as err:
+        # try to fall back to positional args for callables that reject keyword args (e.g. builtins)
+        if 'keyword arguments' not in str(err):
+          raise  # not a kwarg issue, re-raise
+        logging.debug(f'Tool {func_name!r} rejected keyword args, retrying positionally')
+        tool_result = tool_map[func_name](*args.values())
     except Exception as err:  # noqa: BLE001 --- we are purposeful in catching all exceptions
       logging.error(f'Error: {func_name!r} raised: {err}')  # noqa: TRY400 --- not log.exception!!
       tool_result = err  # we will feed the exception info back to the model as the tool result
