@@ -11,9 +11,9 @@ from __future__ import annotations
 import json
 import math
 import pathlib
-import threading
 from unittest import mock
 
+import func_timeout.exceptions
 import llama_cpp
 import lmstudio
 import pydantic
@@ -435,7 +435,7 @@ def testLoadModelWrapsNonErrorExceptionFromLoadNew() -> None:
   w = _ConcreteWorker()
   with (
     mock.patch.object(w, '_LoadNew', side_effect=RuntimeError('backend exploded')),
-    pytest.raises(ai.Error, match='Error loading model'),
+    pytest.raises(ai.Error, match='load error'),
   ):
     w.LoadModel(ai.MakeAIModelConfig())
 
@@ -525,7 +525,7 @@ def testModelCallWrapsGenericExceptionFromCall() -> None:
   w._loaded_models[ai.DEFAULT_TEXT_MODEL] = loaded
   with (
     mock.patch.object(w, '_Call', side_effect=RuntimeError('backend exploded')),
-    pytest.raises(ai.Error, match='Error calling model'),
+    pytest.raises(ai.Error, match='call error'),
   ):
     w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str)
 
@@ -675,78 +675,52 @@ def testGetCallableRaisesOnNonCallable() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AIWorker._RunWithTimeout
+# AIWorker timeout (func_timeout integration)
 # ---------------------------------------------------------------------------
 
 
-def testRunWithTimeoutNoTimeoutCallsFuncDirectly() -> None:
-  """_RunWithTimeout with timeout=None calls func directly (no thread spawned)."""
+def testLoadModelNoTimeoutCallsFuncDirectly() -> None:
+  """LoadModel with timeout=None calls _LoadNew directly without using func_timeout."""
   w = _ConcreteWorker()
   w._timeout = None
-  calls: list[int] = []
-
-  def _track() -> str:
-    calls.append(1)
-    return 'result'
-
-  result: str = w._RunWithTimeout(_track, description='test')
-  assert result == 'result'
-  assert calls == [1]
+  w._load_return = _MakeLlamaModel()
+  with mock.patch('transai.core.ai.func_timeout.func_timeout') as ft_mock:
+    w.LoadModel(ai.MakeAIModelConfig())
+  ft_mock.assert_not_called()
 
 
-def testRunWithTimeoutReturnsValueWhenCompletesInTime() -> None:
-  """_RunWithTimeout returns the function value when it completes within the timeout."""
+def testModelCallNoTimeoutCallsFuncDirectly() -> None:
+  """ModelCall with timeout=None calls _Call directly without using func_timeout."""
   w = _ConcreteWorker()
-  w._timeout = 30.0  # generous timeout
-  result: str = w._RunWithTimeout(lambda: 'done', description='fast op')
-  assert result == 'done'
-
-
-def testRunWithTimeoutRaisesOnTimeout() -> None:
-  """_RunWithTimeout raises Error with message when the timeout fires."""
-  w = _ConcreteWorker()
-  w._timeout = 0.05  # 50 ms
-  unblock = threading.Event()
-
-  def _block() -> None:
-    unblock.wait(timeout=30.0)
-
-  try:
-    with pytest.raises(ai.Error, match=r'timed out after 50\.000 ms'):
-      w._RunWithTimeout(_block, description='blocking operation')
-  finally:
-    unblock.set()  # release the background thread before exiting
-
-
-def testRunWithTimeoutPropagatesExceptionFromFunc() -> None:
-  """_RunWithTimeout re-raises exceptions raised inside func."""
-  w = _ConcreteWorker()
-  w._timeout = 30.0
-
-  def _raise() -> str:
-    raise ValueError('inner error')
-
-  with pytest.raises(ValueError, match='inner error'):
-    w._RunWithTimeout(_raise, description='failing op')
+  w._timeout = None
+  w._call_return = 'answer'
+  w._loaded_models[ai.DEFAULT_TEXT_MODEL] = _MakeLlamaModel()
+  with mock.patch('transai.core.ai.func_timeout.func_timeout') as ft_mock:
+    result: str = w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str)
+  assert result == 'answer'
+  ft_mock.assert_not_called()
 
 
 def testLoadModelRaisesOnTimeout() -> None:
-  """LoadModel() propagates timeout Error raised by _RunWithTimeout."""
+  """LoadModel() wraps FunctionTimedOut from func_timeout as ai.Error."""
   w = _ConcreteWorker()
   w._timeout = 1.0
+  timed_out = func_timeout.exceptions.FunctionTimedOut()
   with (
-    mock.patch.object(w, '_RunWithTimeout', side_effect=ai.Error('loading model timed out')),
-    pytest.raises(ai.Error, match='timed out'),
+    mock.patch('transai.core.ai.func_timeout.func_timeout', side_effect=timed_out),
+    pytest.raises(ai.Error, match='load timed out'),
   ):
     w.LoadModel(ai.MakeAIModelConfig())
 
 
 def testModelCallRaisesOnTimeout() -> None:
-  """ModelCall() propagates timeout Error raised by _RunWithTimeout."""
+  """ModelCall() wraps FunctionTimedOut from func_timeout as ai.Error."""
   w = _ConcreteWorker()
+  w._timeout = 1.0
   w._loaded_models[ai.DEFAULT_TEXT_MODEL] = _MakeLlamaModel()
+  timed_out = func_timeout.exceptions.FunctionTimedOut()
   with (
-    mock.patch.object(w, '_RunWithTimeout', side_effect=ai.Error('calling model timed out')),
-    pytest.raises(ai.Error, match='timed out'),
+    mock.patch('transai.core.ai.func_timeout.func_timeout', side_effect=timed_out),
+    pytest.raises(ai.Error, match='call timed out'),
   ):
     w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str)

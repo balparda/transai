@@ -269,12 +269,6 @@ def testExtractContentSuccess() -> None:
     assert llama._ExtractContent(_MakeResponse('hello world')) == 'hello world'  # type: ignore[arg-type]
 
 
-def testExtractContentSuccessLengthFinishReason() -> None:
-  """_ExtractContent accepts 'length' as a valid finish_reason."""
-  with typeguard.suppress_type_checks():
-    assert llama._ExtractContent(_MakeResponse('partial', 'length')) == 'partial'  # type: ignore[arg-type]
-
-
 def testExtractContentRaisesOnNoChoices() -> None:
   """_ExtractContent raises Error when choices list is empty."""
   response: Any = _MakeResponse()
@@ -808,105 +802,23 @@ def testLlamaCallRaisesOnEmptyToolDefs(tmp_path: pathlib.Path) -> None:
 
 def testQwenDecodeNoToolCalls() -> None:
   """_QwenDecode returns content text and empty tool list when no tool calls are present."""
-  choice: dict[str, Any] = {
-    'finish_reason': 'stop',
-    'message': {'content': 'answer without tools'},
-  }
-  content, tools = llama._QwenDecode(choice)  # type: ignore[arg-type]
+  content, tools = llama._QwenDecode('answer without tools')
   assert content == 'answer without tools'
   assert tools == []
 
 
 def testQwenDecodeWithToolCall() -> None:
-  """_QwenDecode extracts a tool call from <tool_call>…</tool_call> tags."""
+  """_QwenDecode extracts a tool call from <tool_call> tags."""
   tool_json = json.dumps({'name': 'my_tool', 'arguments': {'x': 5}})
-  choice: dict[str, Any] = {
-    'finish_reason': 'stop',
-    'message': {'content': f'calling: <tool_call>{tool_json}</tool_call>'},
-  }
-  _, tools = llama._QwenDecode(choice)  # type: ignore[arg-type]
+  _, tools = llama._QwenDecode(f'calling: <tool_call>{tool_json}</tool_call>')
   assert tools[0]['function'] == {'name': 'my_tool', 'arguments': {'x': 5}}
 
 
-def testQwenDecodeStripsThinkTags() -> None:
-  """_QwenDecode strips <think>…</think> blocks from the content."""
-  choice: dict[str, Any] = {
-    'finish_reason': 'stop',
-    'message': {'content': '<think>internal</think>real answer'},
-  }
-  content, tools = llama._QwenDecode(choice)  # type: ignore[arg-type]
-  assert content == 'real answer'
-  assert tools == []
-
-
 def testQwenDecodeEmptyContentReturnsNone() -> None:
-  """_QwenDecode returns None for content when the message is empty."""
-  choice: dict[str, Any] = {
-    'finish_reason': 'stop',
-    'message': {'content': ''},
-  }
-  content, tools = llama._QwenDecode(choice)  # type: ignore[arg-type]
+  """_QwenDecode returns None for content when the string is empty."""
+  content, tools = llama._QwenDecode('')
   assert content is None
   assert tools == []
-
-
-def testQwenDecodeRaisesOnBadFinishReason() -> None:
-  """_QwenDecode raises Error when finish_reason is not 'stop'."""
-  choice: dict[str, Any] = {
-    'finish_reason': 'length',
-    'message': {'content': 'partial'},
-  }
-  with pytest.raises(llama.Error, match='Unexpected finish_reason'):
-    llama._QwenDecode(choice)  # type: ignore[arg-type]
-
-
-# ---------------------------------------------------------------------------
-# _DefaultDecode
-# ---------------------------------------------------------------------------
-
-
-def testDefaultDecodeNoToolCalls() -> None:
-  """_DefaultDecode returns content and empty tool list when finish_reason is 'stop'."""
-  choice: dict[str, Any] = {
-    'finish_reason': 'stop',
-    'message': {'content': 'final answer'},
-  }
-  content, tools = llama._DefaultDecode(choice)  # type: ignore[arg-type]
-  assert content == 'final answer'
-  assert tools == []
-
-
-def testDefaultDecodeEmptyContentReturnsNone() -> None:
-  """_DefaultDecode returns None content when the message content is empty."""
-  choice: dict[str, Any] = {
-    'finish_reason': 'stop',
-    'message': {'content': ''},
-  }
-  content, tools = llama._DefaultDecode(choice)  # type: ignore[arg-type]
-  assert content is None
-  assert tools == []
-
-
-def testDefaultDecodeWithToolCalls() -> None:
-  """_DefaultDecode returns tool_calls from the message when finish_reason is 'tool_calls'."""
-  fake_tc = [{'id': 'call-1', 'function': {'name': 'f', 'arguments': {}}}]  # pyright: ignore[reportUnknownVariableType]
-  choice: dict[str, Any] = {
-    'finish_reason': 'tool_calls',
-    'message': {'content': '', 'tool_calls': fake_tc},
-  }
-  content, tools = llama._DefaultDecode(choice)  # type: ignore[arg-type]
-  assert content is None
-  assert tools is fake_tc
-
-
-def testDefaultDecodeRaisesOnToolCallsWithoutDetails() -> None:
-  """_DefaultDecode raises Error when finish_reason='tool_calls' but tool_calls list is empty."""
-  choice: dict[str, Any] = {
-    'finish_reason': 'tool_calls',
-    'message': {'content': '', 'tool_calls': []},
-  }
-  with pytest.raises(llama.Error, match="finish_reason='tool_calls'"):
-    llama._DefaultDecode(choice)  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
@@ -919,13 +831,17 @@ def testDefaultDecodeRaisesOnToolCallsWithoutDetails() -> None:
   [
     ('qwen2-7b', llama._QwenDecode),
     ('qwen3-8b-instruct', llama._QwenDecode),
-    ('mistral-7b', llama._DefaultDecode),
-    ('llama3-text', llama._DefaultDecode),
   ],
 )
 def testDetectToolHandler(model_id: str, expected: object) -> None:
   """_DetectToolHandler returns the expected decoder for a given model identifier."""
   assert llama._DetectToolHandler(model_id) is expected
+
+
+def testDetectToolHandlerRaisesOnUnknown() -> None:
+  """_DetectToolHandler raises Error when no handler matches the model identifier."""
+  with pytest.raises(llama.Error, match='does not match any known tool-handling patterns'):
+    llama._DetectToolHandler('completely-unknown-model')
 
 
 # ---------------------------------------------------------------------------
