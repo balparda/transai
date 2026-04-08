@@ -9,6 +9,7 @@ Run with:
 from __future__ import annotations
 
 import json
+import math
 import pathlib
 from unittest import mock
 
@@ -51,6 +52,7 @@ class _ConcreteWorker(ai.AIWorker):
     /,
     *,
     images: list[ai.AIImageInput] | None = None,  # noqa: ARG002
+    tools: list[ai.AnyCallable] | None = None,  # noqa: ARG002
   ) -> T:
     """Echo back the configured return value."""  # noqa: DOC201
     return self._call_return  # type: ignore[return-value]
@@ -494,6 +496,15 @@ def testModelCallRaisesForUnknownModel() -> None:
     w.ModelCall('unknown', 'sys', 'user', str)
 
 
+def testModelCallRaisesWhenImagesButNoVisionCapability() -> None:
+  """ModelCall() raises Error when images are provided but model has vision=False."""
+  w = _ConcreteWorker()
+  loaded: ai.LoadedModel = _MakeLlamaModel(ai.MakeAIModelConfig(vision=False, seed=5000))
+  w._loaded_models[ai.DEFAULT_TEXT_MODEL] = loaded
+  with pytest.raises(ai.Error, match='does not support vision inputs'):
+    w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str, images=[b'\x89PNG'])
+
+
 def testModelCallWrapsJsonDecodeErrorFromCall() -> None:
   """ModelCall() must catch json.JSONDecodeError from _Call() and re-raise as Error."""
   w = _ConcreteWorker()
@@ -522,7 +533,7 @@ def testModelCallPassesImagesThrough() -> None:
   """ModelCall() must forward images keyword argument to _Call()."""
   w = _ConcreteWorker()
   w._call_return = 'img-result'
-  loaded: ai.LoadedModel = _MakeLlamaModel()
+  loaded: ai.LoadedModel = _MakeLlamaModel(ai.MakeAIModelConfig(vision=True, seed=5000))
   w._loaded_models[ai.DEFAULT_TEXT_MODEL] = loaded
   images: list[ai.AIImageInput] = [b'\x89PNG']
   # patch _Call to capture invocation
@@ -537,7 +548,7 @@ def testModelCallPassesMixedImageTypesThrough() -> None:
   """ModelCall() must forward a mixed list of bytes, Path, and str images to _Call()."""
   w = _ConcreteWorker()
   w._call_return = 'mixed-result'
-  loaded: ai.LoadedModel = _MakeLlamaModel()
+  loaded: ai.LoadedModel = _MakeLlamaModel(ai.MakeAIModelConfig(vision=True, seed=5000))
   w._loaded_models[ai.DEFAULT_TEXT_MODEL] = loaded
   mixed_images: list[ai.AIImageInput] = [
     b'\x89PNG\r\n\x1a\n',  # bytes
@@ -554,3 +565,109 @@ def testModelCallPassesMixedImageTypesThrough() -> None:
   assert isinstance(forwarded[0], bytes)
   assert isinstance(forwarded[1], pathlib.Path)
   assert isinstance(forwarded[2], str)
+
+
+def testModelCallRaisesWhenToolsButNoToolingCapability() -> None:
+  """ModelCall() raises Error when tools provided but model has tooling=False."""
+  w = _ConcreteWorker()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(tooling=False, seed=5000)
+  loaded = ai.LoadedModel(
+    model_id=ai.DEFAULT_TEXT_MODEL,
+    seed_state=bytes(32),
+    config=config,
+    metadata={},
+    model=mock.MagicMock(spec=llama_cpp.Llama),
+  )
+  w._loaded_models[ai.DEFAULT_TEXT_MODEL] = loaded
+  with pytest.raises(ai.Error, match='not trained for tool use'):
+    w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str, tools=['math.gcd'])
+
+
+def testModelCallRaisesWhenToolsAndStructuredOutput() -> None:
+  """ModelCall() raises Error when tools requested but output_format is not str."""
+
+  class _MyOutput(pydantic.BaseModel):
+    value: int
+
+  w = _ConcreteWorker()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(tooling=True, seed=5000)
+  loaded = ai.LoadedModel(
+    model_id=ai.DEFAULT_TEXT_MODEL,
+    seed_state=bytes(32),
+    config=config,
+    metadata={},
+    model=mock.MagicMock(spec=llama_cpp.Llama),
+  )
+  w._loaded_models[ai.DEFAULT_TEXT_MODEL] = loaded
+  with pytest.raises(ai.Error, match='non-str output'):
+    w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', _MyOutput, tools=['math.gcd'])
+
+
+def testModelCallPassesToolsThroughToCall() -> None:
+  """ModelCall() converts tool strings to callables and passes them to _Call()."""
+
+  def _my_tool(x: int) -> int:
+    """Return double the input.
+
+    Args:
+      x: the integer to double
+
+    Returns:
+      twice x
+
+    """
+    return x * 2
+
+  w = _ConcreteWorker()
+  w._call_return = 'tool result'
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(tooling=True, seed=5000)
+  loaded = ai.LoadedModel(
+    model_id=ai.DEFAULT_TEXT_MODEL,
+    seed_state=bytes(32),
+    config=config,
+    metadata={},
+    model=mock.MagicMock(spec=llama_cpp.Llama),
+  )
+  w._loaded_models[ai.DEFAULT_TEXT_MODEL] = loaded
+  with mock.patch.object(w, '_Call', return_value='tool result') as call_mock:
+    result: str = w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str, tools=[_my_tool])
+  assert result == 'tool result'
+  call_mock.assert_called_once()
+  _, kwargs = call_mock.call_args
+  assert kwargs.get('tools') == [_my_tool]
+
+
+# ---------------------------------------------------------------------------
+# _GetCallable
+# ---------------------------------------------------------------------------
+
+
+def testGetCallableWithCallable() -> None:
+  """_GetCallable returns a callable object unchanged."""
+  func = lambda x: x  # pyright: ignore[reportUnknownVariableType, reportUnknownLambdaType]
+  assert ai._GetCallable(func) is func  # pyright: ignore[reportUnknownArgumentType]
+
+
+def testGetCallableWithValidDotString() -> None:
+  """_GetCallable resolves a fully qualified name string to the callable."""
+  result = ai._GetCallable('math.gcd')
+  assert result is math.gcd
+
+
+def testGetCallableRaisesOnImportError() -> None:
+  """_GetCallable raises Error when the module cannot be imported."""
+  with pytest.raises(ai.Error, match='Error resolving tool name'):
+    ai._GetCallable('nonexistent_xyz_module_abc.some_func')
+
+
+def testGetCallableRaisesOnAttributeError() -> None:
+  """_GetCallable raises Error when the attribute does not exist in the module."""
+  with pytest.raises(ai.Error, match='Error resolving tool name'):
+    ai._GetCallable('math.nonexistent_attr_xyz')
+
+
+def testGetCallableRaisesOnNonCallable() -> None:
+  """_GetCallable raises Error when the resolved symbol is not callable."""
+  # os.sep is a string (path separator), not callable
+  with pytest.raises(ai.Error, match='not callable'):
+    ai._GetCallable('os.sep')

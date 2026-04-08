@@ -142,6 +142,7 @@
     "footguns",
     "fromlist",
     "furo",
+    "getcwd",
     "GGML",
     "GGUF",
     "gmpy",

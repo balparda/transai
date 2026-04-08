@@ -18,7 +18,8 @@ This project follows a pragmatic versioning approach:
 ## V.V.V - YYYY-MM-DD - Placeholder
 
 - Added
-  - Placeholder for future changes.
+  - Tool calling support in both `LMStudioWorker` (via `_CallLMSAct`) and `LlamaWorker` (via `_CallLlamaAct`): models that support function calling can now invoke Python callables passed via the `tools` parameter of `ModelCall()`
+  - `--tools` CLI option added to the `query` command: pass one or more fully-qualified Python callable names (e.g., `--tools math.gcd --tools os.getcwd`)
 
 - Changed
   - Placeholder for future changes.

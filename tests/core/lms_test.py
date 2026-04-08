@@ -14,6 +14,7 @@ from unittest import mock
 import lmstudio
 import pydantic
 import pytest
+from lmstudio import _sdk_models  # noqa: PLC2701
 
 from transai.core import ai, lms
 
@@ -392,10 +393,7 @@ def testLMSCallReturnsStringContent() -> None:
     metadata={},
     model=lm_model_mock,
   )
-  with (
-    mock.patch('lmstudio.LlmPredictionConfigDict', return_value={}),
-    mock.patch('lmstudio.Chat') as chat_cls,
-  ):
+  with mock.patch('lmstudio.Chat') as chat_cls:
     chat_mock = mock.MagicMock()
     chat_cls.return_value = chat_mock
     result: str = worker._Call(loaded, 'system', 'user question', str, 1000)
@@ -423,10 +421,7 @@ def testLMSCallReturnsParsedPydanticModel() -> None:
     metadata={},
     model=lm_model_mock,
   )
-  with (
-    mock.patch('lmstudio.LlmPredictionConfigDict', return_value={}),
-    mock.patch('lmstudio.Chat') as chat_cls,
-  ):
+  with mock.patch('lmstudio.Chat') as chat_cls:
     chat_cls.return_value = mock.MagicMock()
     result = worker._Call(loaded, 'system', 'user', _MyOutput, 1000)
   assert isinstance(result, _MyOutput)
@@ -447,10 +442,7 @@ def testLMSCallRaisesOnLMStudioServerError() -> None:
     metadata={},
     model=lm_model_mock,
   )
-  with (
-    mock.patch('lmstudio.LlmPredictionConfigDict', return_value={}),
-    mock.patch('lmstudio.Chat') as chat_cls,
-  ):
+  with mock.patch('lmstudio.Chat') as chat_cls:
     chat_cls.return_value = mock.MagicMock()
     with pytest.raises(lms.Error, match='Error calling model'):
       worker._Call(loaded, 'system', 'user', str, 1000)
@@ -470,10 +462,7 @@ def testLMSCallRaisesOnUnexpectedStopReason() -> None:
     metadata={},
     model=lm_model_mock,
   )
-  with (
-    mock.patch('lmstudio.LlmPredictionConfigDict', return_value={}),
-    mock.patch('lmstudio.Chat') as chat_cls,
-  ):
+  with mock.patch('lmstudio.Chat') as chat_cls:
     chat_cls.return_value = mock.MagicMock()
     with pytest.raises(lms.Error, match='Unexpected stop reason'):
       worker._Call(loaded, 'system', 'user', str, 1000)
@@ -496,7 +485,6 @@ def testLMSCallWithImageBytes() -> None:
   fake_bytes = b'\x89PNG'
   fake_prepared = mock.MagicMock()
   with (
-    mock.patch('lmstudio.LlmPredictionConfigDict', return_value={}),
     mock.patch('lmstudio.Chat') as chat_cls,
     mock.patch('lmstudio.prepare_image', return_value=fake_prepared) as prepare_mock,
   ):
@@ -526,7 +514,6 @@ def testLMSCallWithImagePaths() -> None:
   img_path = pathlib.Path('/fake/image.png')
   fake_prepared = mock.MagicMock()
   with (
-    mock.patch('lmstudio.LlmPredictionConfigDict', return_value={}),
     mock.patch('lmstudio.Chat') as chat_cls,
     mock.patch('lmstudio.prepare_image', return_value=fake_prepared) as prepare_mock,
   ):
@@ -551,10 +538,7 @@ def testLMSCallNoImages() -> None:
     metadata={},
     model=lm_model_mock,
   )
-  with (
-    mock.patch('lmstudio.LlmPredictionConfigDict', return_value={}),
-    mock.patch('lmstudio.Chat') as chat_cls,
-  ):
+  with mock.patch('lmstudio.Chat') as chat_cls:
     chat_mock = mock.MagicMock()
     chat_cls.return_value = chat_mock
     result: str = worker._Call(loaded, 'system', 'user', str, 1000)
@@ -580,12 +564,318 @@ def testLMSWorkerLoadModelAndModelCall() -> None:
   lm_model_mock.respond.return_value = pred_result
   client_mock.llm.load_new_instance.return_value = lm_model_mock
   with (
-    mock.patch('lmstudio.LlmLoadModelConfigDict', return_value={}),
     mock.patch('transai.core.ai.saferandom.RandBits', return_value=5000),
-    mock.patch('lmstudio.LlmPredictionConfigDict', return_value={}),
     mock.patch('lmstudio.Chat') as chat_cls,
   ):
     chat_cls.return_value = mock.MagicMock()
     worker.LoadModel(config)
     result: str = worker.ModelCall('my-lms-model', 'sys', 'user', str)
   assert result == 'e2e lms result'
+
+
+# ---------------------------------------------------------------------------
+# LMStudioWorker.__init__ with free_resources=False
+# ---------------------------------------------------------------------------
+
+
+def testLMSWorkerInitRegistersModelsWhenNoFreeResources() -> None:
+  """LMStudioWorker(free_resources=False) registers already-loaded models instead of unloading."""
+  client_mock = mock.MagicMock()
+  lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
+  existing = mock.MagicMock()
+  existing.identifier = 'already-loaded-model'
+  client_mock.llm.list_loaded.return_value = [existing]
+  # set up get_info and get_context_length so _ExtractModelInfo succeeds
+  model_info = mock.MagicMock(spec=lmstudio.LlmInstanceInfo)
+  model_info.vision = False
+  model_info.trained_for_tool_use = False
+  model_info.to_dict.return_value = {}
+  lm_model_mock.get_info.return_value = model_info
+  lm_model_mock.get_context_length.return_value = 4096
+  client_mock.llm.list_loaded.return_value = [existing]
+  # The 'existing' mock IS the LLM object for _ExtractModelInfo
+  existing.get_info.return_value = model_info
+  existing.get_context_length.return_value = ai.AI_CONTEXT_LENGTH + 1  # must be >= requested ctx
+  client_cls_mock = mock.MagicMock()
+  client_cls_mock.find_default_local_api_host.return_value = '127.0.0.1:1234'
+  client_cls_mock.return_value = client_mock
+  with (
+    mock.patch.object(lmstudio, 'Client', client_cls_mock),
+    mock.patch.object(lmstudio, 'set_sync_api_timeout'),
+    mock.patch('transai.core.ai.saferandom.RandBits', return_value=5000),
+  ):
+    worker = lms.LMStudioWorker(free_resources=False)
+  # must NOT unload; must register the already-loaded model
+  client_mock.llm.unload.assert_not_called()
+  assert 'already-loaded-model' in worker._loaded_models
+
+
+# ---------------------------------------------------------------------------
+# LMStudioWorker._Call — tool use
+# ---------------------------------------------------------------------------
+
+
+def testLMSCallWithToolsCallsAct() -> None:
+  """_Call uses _CallLMSAct when tools are provided."""
+  worker, _client = _MakeLMSWorker()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(seed=5000)
+  lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
+  loaded = ai.LoadedModel(
+    model_id=config['model_id'],
+    seed_state=bytes(32),
+    config=config,
+    metadata={},
+    model=lm_model_mock,
+  )
+
+  def _my_tool(x: int) -> int:
+    """Return doubled value.
+
+    Args:
+      x: input
+
+    Returns:
+      doubled x
+
+    """
+    return x * 2
+
+  with mock.patch('lmstudio.Chat') as chat_cls:
+    chat_cls.return_value = mock.MagicMock()
+    with mock.patch('transai.core.lms._CallLMSAct', return_value='tool response') as act_mock:
+      result: str = worker._Call(loaded, 'sys', 'user', str, 1000, tools=[_my_tool])
+  assert result == 'tool response'
+  act_mock.assert_called_once()
+
+
+def testLMSCallRaisesOnToolsWithStructuredOutput() -> None:
+  """_Call raises Error when tools provided but output_format is not str."""
+
+  class _Out(pydantic.BaseModel):
+    value: int
+
+  worker, _client = _MakeLMSWorker()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(seed=5000)
+  lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
+  loaded = ai.LoadedModel(
+    model_id=config['model_id'],
+    seed_state=bytes(32),
+    config=config,
+    metadata={},
+    model=lm_model_mock,
+  )
+
+  def _my_tool(x: int) -> int:
+    """Return doubled value.
+
+    Args:
+      x: input
+
+    Returns:
+      doubled x
+
+    """
+    return x * 2
+
+  with mock.patch('lmstudio.Chat') as chat_cls:
+    chat_cls.return_value = mock.MagicMock()
+    with pytest.raises(lms.Error, match='unsupported'):
+      worker._Call(loaded, 'sys', 'user', _Out, 1000, tools=[_my_tool])  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# _CallLMSAct — tool callback branches
+# ---------------------------------------------------------------------------
+
+
+def _MakeActResult(rounds: int = 1) -> lmstudio.ActResult:
+  """Build a real lmstudio.ActResult.
+
+  Args:
+    rounds: number of tool-use rounds to report
+
+  Returns:
+    ActResult instance
+
+  """
+  return lmstudio.ActResult(rounds=rounds, total_time_seconds=0.1)
+
+
+def testCallLMSActPlainTextContent() -> None:
+  """_CallLMSAct returns the text content produced by the model (no tool calls)."""
+  llm_mock = mock.MagicMock(spec=lmstudio.LLM)
+  chat_mock = mock.MagicMock()
+  td = lmstudio.TextData(text='hello from model')
+  resp = lmstudio.AssistantResponse(content=[td])
+
+  def _fake_act(
+    _chat: object,
+    config: object,  # noqa: ARG001
+    tools: object,  # noqa: ARG001
+    on_message: object,
+  ) -> lmstudio.ActResult:
+    on_message(resp)  # type: ignore[operator]
+    return _MakeActResult()
+
+  llm_mock.act.side_effect = _fake_act
+  result: str = lms._CallLMSAct(llm_mock, chat_mock, {}, [])  # type: ignore[arg-type,call-arg]
+  assert result == 'hello from model'
+
+
+def testCallLMSActStripsThinkTags() -> None:
+  """_CallLMSAct strips <think>…</think> blocks from text content."""
+  llm_mock = mock.MagicMock(spec=lmstudio.LLM)
+  chat_mock = mock.MagicMock()
+  td = lmstudio.TextData(text='<think>internal thought</think>final answer')
+  resp = lmstudio.AssistantResponse(content=[td])
+
+  def _fake_act(
+    _c: object,
+    config: object,  # noqa: ARG001
+    tools: object,  # noqa: ARG001
+    on_message: object,
+  ) -> lmstudio.ActResult:
+    on_message(resp)  # type: ignore[operator]
+    return _MakeActResult()
+
+  llm_mock.act.side_effect = _fake_act
+  result: str = lms._CallLMSAct(llm_mock, chat_mock, {}, [])  # type: ignore[arg-type,call-arg]
+  assert result == 'final answer'
+
+
+def testCallLMSActEmptyTextAfterThinkStripNotAdded() -> None:
+  """_CallLMSAct does not add empty strings when all text is stripped by think tags."""
+  llm_mock = mock.MagicMock(spec=lmstudio.LLM)
+  chat_mock = mock.MagicMock()
+  td = lmstudio.TextData(text='<think>only thinking</think>')
+  resp = lmstudio.AssistantResponse(content=[td])
+
+  def _fake_act(
+    _c: object,
+    config: object,  # noqa: ARG001
+    tools: object,  # noqa: ARG001
+    on_message: object,
+  ) -> lmstudio.ActResult:
+    on_message(resp)  # type: ignore[operator]
+    return _MakeActResult()
+
+  llm_mock.act.side_effect = _fake_act
+  result: str = lms._CallLMSAct(llm_mock, chat_mock, {}, [])  # type: ignore[arg-type,call-arg]
+  assert not result  # no content accumulated
+
+
+def testCallLMSActFileHandleLogsError() -> None:
+  """_CallLMSAct logs an error when a FileHandle appears in the message content."""
+  llm_mock = mock.MagicMock(spec=lmstudio.LLM)
+  chat_mock = mock.MagicMock()
+  file_handle = mock.MagicMock(spec=lmstudio.FileHandle)
+  resp = lmstudio.AssistantResponse(content=[file_handle])  # type: ignore[list-item]
+
+  def _fake_act(
+    _c: object,
+    config: object,  # noqa: ARG001
+    tools: object,  # noqa: ARG001
+    on_message: object,
+  ) -> lmstudio.ActResult:
+    on_message(resp)  # type: ignore[operator]
+    return _MakeActResult()
+
+  llm_mock.act.side_effect = _fake_act
+  with mock.patch('transai.core.lms.logging') as log_mock:
+    lms._CallLMSAct(llm_mock, chat_mock, {}, [])  # type: ignore[arg-type,call-arg]
+  log_mock.error.assert_called_once()
+
+
+def testCallLMSActToolCallRequestAndResult() -> None:
+  """_CallLMSAct processes tool call request then tool result and returns text."""
+  llm_mock = mock.MagicMock(spec=lmstudio.LLM)
+  chat_mock = mock.MagicMock()
+  # message 1: tool call request
+  req = lmstudio.ToolCallRequest(type='function', name='my_tool', id='call-001', arguments={'x': 5})
+  req_data = _sdk_models.ToolCallRequestData(tool_call_request=req)
+  resp1 = lmstudio.AssistantResponse(content=[req_data])  # type: ignore[list-item]
+  # message 2: tool result
+  res_data = lmstudio.ToolCallResultData(content='10', tool_call_id='call-001')
+  resp2 = lmstudio.ToolResultMessage(content=[res_data])
+  # message 3: final text
+  td = lmstudio.TextData(text='the answer is 10')
+  resp3 = lmstudio.AssistantResponse(content=[td])
+
+  def _fake_act(
+    _c: object,
+    config: object,  # noqa: ARG001
+    tools: object,  # noqa: ARG001
+    on_message: object,
+  ) -> lmstudio.ActResult:
+    on_message(resp1)  # type: ignore[operator]
+    on_message(resp2)  # type: ignore[operator]
+    on_message(resp3)  # type: ignore[operator]
+    return _MakeActResult(rounds=2)
+
+  llm_mock.act.side_effect = _fake_act
+  result: str = lms._CallLMSAct(llm_mock, chat_mock, {}, [])  # type: ignore[arg-type,call-arg]
+  assert result == 'the answer is 10'
+
+
+def testCallLMSActRaisesOnMissingToolCallRequestId() -> None:
+  """_CallLMSAct raises Error when a ToolCallRequestData has no id."""
+  llm_mock = mock.MagicMock(spec=lmstudio.LLM)
+  chat_mock = mock.MagicMock()
+  req = lmstudio.ToolCallRequest(type='function', name='my_tool', id=None, arguments={})
+  req_data = _sdk_models.ToolCallRequestData(tool_call_request=req)
+  resp = lmstudio.AssistantResponse(content=[req_data])  # type: ignore[list-item]
+
+  def _fake_act(
+    _c: object,
+    config: object,  # noqa: ARG001
+    tools: object,  # noqa: ARG001
+    on_message: object,
+  ) -> lmstudio.ActResult:
+    on_message(resp)  # type: ignore[operator]
+    return _MakeActResult()
+
+  llm_mock.act.side_effect = _fake_act
+  with pytest.raises(lms.Error, match='Tool call missing id'):
+    lms._CallLMSAct(llm_mock, chat_mock, {}, [])  # type: ignore[arg-type,call-arg]
+
+
+def testCallLMSActRaisesOnToolResultMissingId() -> None:
+  """_CallLMSAct raises Error when a ToolCallResultData has no tool_call_id."""
+  llm_mock = mock.MagicMock(spec=lmstudio.LLM)
+  chat_mock = mock.MagicMock()
+  res_data = lmstudio.ToolCallResultData(content='val', tool_call_id=None)
+  resp = lmstudio.ToolResultMessage(content=[res_data])
+
+  def _fake_act(
+    _c: object,
+    config: object,  # noqa: ARG001
+    tools: object,  # noqa: ARG001
+    on_message: object,
+  ) -> lmstudio.ActResult:
+    on_message(resp)  # type: ignore[operator]
+    return _MakeActResult()
+
+  llm_mock.act.side_effect = _fake_act
+  with pytest.raises(lms.Error, match='Tool response missing id'):
+    lms._CallLMSAct(llm_mock, chat_mock, {}, [])  # type: ignore[arg-type,call-arg]
+
+
+def testCallLMSActRaisesOnUnknownToolResultId() -> None:
+  """_CallLMSAct raises Error when a ToolCallResultData references an unknown call id."""
+  llm_mock = mock.MagicMock(spec=lmstudio.LLM)
+  chat_mock = mock.MagicMock()
+  res_data = lmstudio.ToolCallResultData(content='val', tool_call_id='unknown-id-xyz')
+  resp = lmstudio.ToolResultMessage(content=[res_data])
+
+  def _fake_act(
+    _c: object,
+    config: object,  # noqa: ARG001
+    tools: object,  # noqa: ARG001
+    on_message: object,
+  ) -> lmstudio.ActResult:
+    on_message(resp)  # type: ignore[operator]
+    return _MakeActResult()
+
+  llm_mock.act.side_effect = _fake_act
+  with pytest.raises(lms.Error, match='Tool response with unknown id'):
+    lms._CallLMSAct(llm_mock, chat_mock, {}, [])  # type: ignore[arg-type,call-arg]

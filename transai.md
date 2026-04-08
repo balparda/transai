@@ -114,6 +114,7 @@ Usage: transai query [OPTIONS] MODEL_INPUT
 ╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ --system  -y               TEXT  Prefix prompt; prepend to query; "system prompt"; default: no system prompt                                            │
 │ --images  -i               PATH  A list of image paths to use as input for the model query; default: None, no images                                    │
+│ --tools   -z               TEXT  A list of python methods to use as tools for the model query; default: None, no tools                                  │
 │ --free        --no-free          Unload previous models before loading new ones (LM Studio)? default: False (keep)                    │
 │ --help                           Show this message and exit.                                                                                            │
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

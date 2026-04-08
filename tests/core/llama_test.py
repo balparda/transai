@@ -9,6 +9,7 @@ Run with:
 from __future__ import annotations
 
 import base64
+import json
 import pathlib
 from typing import Any
 from unittest import mock
@@ -677,3 +678,517 @@ def testLlamaWorkerLoadModelAndModelCall(tmp_path: pathlib.Path) -> None:
     w.LoadModel(config)
     result: str = w.ModelCall('mymodel', 'system', 'user', str)
   assert result == 'e2e result'
+
+
+# ---------------------------------------------------------------------------
+# LlamaWorker._Call — tool use
+# ---------------------------------------------------------------------------
+
+
+def testLlamaCallRaisesOnToolsButNoToolingCapability(tmp_path: pathlib.Path) -> None:
+  """_Call raises Error when tools provided but model has tooling=False."""
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(vision=False, tooling=False, seed=5000)
+  llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
+  loaded = ai.LoadedModel(
+    model_id=config['model_id'], seed_state=bytes(32), config=config, metadata={}, model=llm_mock
+  )
+  w = llama.LlamaWorker(tmp_path)
+
+  def _my_tool(x: int) -> int:
+    """Return doubled.
+
+    Args:
+      x: input
+
+    Returns:
+      doubled x
+
+    """
+    return x * 2
+
+  with pytest.raises(llama.Error, match='does not support tools'):
+    w._Call(loaded, 'sys', 'user', str, 1000, tools=[_my_tool])
+
+
+def testLlamaCallRaisesOnToolsWithStructuredOutput(tmp_path: pathlib.Path) -> None:
+  """_Call raises Error when tools provided with non-str output_format."""
+
+  class _Out(pydantic.BaseModel):
+    value: int
+
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(vision=False, tooling=True, seed=5000)
+  llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
+  loaded = ai.LoadedModel(
+    model_id=config['model_id'], seed_state=bytes(32), config=config, metadata={}, model=llm_mock
+  )
+  w = llama.LlamaWorker(tmp_path)
+
+  def _my_tool(x: int) -> int:
+    """Return doubled.
+
+    Args:
+      x: input
+
+    Returns:
+      doubled x
+
+    """
+    return x * 2
+
+  with pytest.raises(llama.Error, match='str output_format'):
+    w._Call(loaded, 'sys', 'user', _Out, 1000, tools=[_my_tool])  # type: ignore[arg-type]
+
+
+def testLlamaCallWithToolsCallsAct(tmp_path: pathlib.Path) -> None:
+  """_Call routes to _CallLlamaAct when tools are provided."""
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(vision=False, tooling=True, seed=5000)
+  llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
+  llm_mock.metadata = {'general.name': 'tool-capable-model'}
+  loaded = ai.LoadedModel(
+    model_id=config['model_id'], seed_state=bytes(32), config=config, metadata={}, model=llm_mock
+  )
+  w = llama.LlamaWorker(tmp_path)
+
+  def _my_tool(x: int) -> int:
+    """Return doubled.
+
+    Args:
+      x: input
+
+    Returns:
+      doubled x
+
+    """
+    return x * 2
+
+  with (
+    mock.patch('transai.core.llama._CallLlamaAct', return_value='tool answer') as act_mock,
+    mock.patch('lmstudio.json_api.ChatResponseEndpoint.parse_tools') as parse_mock,
+  ):
+    fake_tool = mock.MagicMock()
+    fake_tool.to_dict.return_value = {'name': '_my_tool'}
+    parse_mock.return_value = (mock.MagicMock(tools=[fake_tool]),)
+    with typeguard.suppress_type_checks():
+      result: str = w._Call(loaded, 'sys', 'user', str, 1000, tools=[_my_tool])
+  assert result == 'tool answer'
+  act_mock.assert_called_once()
+
+
+def testLlamaCallRaisesOnEmptyToolDefs(tmp_path: pathlib.Path) -> None:
+  """_Call raises Error when parsed tool definitions are empty."""
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(vision=False, tooling=True, seed=5000)
+  llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
+  loaded = ai.LoadedModel(
+    model_id=config['model_id'], seed_state=bytes(32), config=config, metadata={}, model=llm_mock
+  )
+  w = llama.LlamaWorker(tmp_path)
+
+  def _my_tool(x: int) -> int:
+    """Return doubled.
+
+    Args:
+      x: input
+
+    Returns:
+      doubled x
+
+    """
+    return x * 2
+
+  with mock.patch('lmstudio.json_api.ChatResponseEndpoint.parse_tools') as parse_mock:
+    parse_mock.return_value = (mock.MagicMock(tools=[]),)  # empty tools list
+    with pytest.raises(llama.Error, match='No valid tools'), typeguard.suppress_type_checks():
+      w._Call(loaded, 'sys', 'user', str, 1000, tools=[_my_tool])
+
+
+# ---------------------------------------------------------------------------
+# _QwenDecode
+# ---------------------------------------------------------------------------
+
+
+def testQwenDecodeNoToolCalls() -> None:
+  """_QwenDecode returns content text and empty tool list when no tool calls are present."""
+  choice: dict[str, Any] = {
+    'finish_reason': 'stop',
+    'message': {'content': 'answer without tools'},
+  }
+  content, tools = llama._QwenDecode(choice)  # type: ignore[arg-type]
+  assert content == 'answer without tools'
+  assert tools == []
+
+
+def testQwenDecodeWithToolCall() -> None:
+  """_QwenDecode extracts a tool call from <tool_call>…</tool_call> tags."""
+  tool_json = json.dumps({'name': 'my_tool', 'arguments': {'x': 5}})
+  choice: dict[str, Any] = {
+    'finish_reason': 'stop',
+    'message': {'content': f'calling: <tool_call>{tool_json}</tool_call>'},
+  }
+  _, tools = llama._QwenDecode(choice)  # type: ignore[arg-type]
+  assert tools[0]['function'] == {'name': 'my_tool', 'arguments': {'x': 5}}
+
+
+def testQwenDecodeStripsThinkTags() -> None:
+  """_QwenDecode strips <think>…</think> blocks from the content."""
+  choice: dict[str, Any] = {
+    'finish_reason': 'stop',
+    'message': {'content': '<think>internal</think>real answer'},
+  }
+  content, tools = llama._QwenDecode(choice)  # type: ignore[arg-type]
+  assert content == 'real answer'
+  assert tools == []
+
+
+def testQwenDecodeEmptyContentReturnsNone() -> None:
+  """_QwenDecode returns None for content when the message is empty."""
+  choice: dict[str, Any] = {
+    'finish_reason': 'stop',
+    'message': {'content': ''},
+  }
+  content, tools = llama._QwenDecode(choice)  # type: ignore[arg-type]
+  assert content is None
+  assert tools == []
+
+
+def testQwenDecodeRaisesOnBadFinishReason() -> None:
+  """_QwenDecode raises Error when finish_reason is not 'stop'."""
+  choice: dict[str, Any] = {
+    'finish_reason': 'length',
+    'message': {'content': 'partial'},
+  }
+  with pytest.raises(llama.Error, match='Unexpected finish_reason'):
+    llama._QwenDecode(choice)  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# _DefaultDecode
+# ---------------------------------------------------------------------------
+
+
+def testDefaultDecodeNoToolCalls() -> None:
+  """_DefaultDecode returns content and empty tool list when finish_reason is 'stop'."""
+  choice: dict[str, Any] = {
+    'finish_reason': 'stop',
+    'message': {'content': 'final answer'},
+  }
+  content, tools = llama._DefaultDecode(choice)  # type: ignore[arg-type]
+  assert content == 'final answer'
+  assert tools == []
+
+
+def testDefaultDecodeEmptyContentReturnsNone() -> None:
+  """_DefaultDecode returns None content when the message content is empty."""
+  choice: dict[str, Any] = {
+    'finish_reason': 'stop',
+    'message': {'content': ''},
+  }
+  content, tools = llama._DefaultDecode(choice)  # type: ignore[arg-type]
+  assert content is None
+  assert tools == []
+
+
+def testDefaultDecodeWithToolCalls() -> None:
+  """_DefaultDecode returns tool_calls from the message when finish_reason is 'tool_calls'."""
+  fake_tc = [{'id': 'call-1', 'function': {'name': 'f', 'arguments': {}}}]  # pyright: ignore[reportUnknownVariableType]
+  choice: dict[str, Any] = {
+    'finish_reason': 'tool_calls',
+    'message': {'content': '', 'tool_calls': fake_tc},
+  }
+  content, tools = llama._DefaultDecode(choice)  # type: ignore[arg-type]
+  assert content is None
+  assert tools is fake_tc
+
+
+def testDefaultDecodeRaisesOnToolCallsWithoutDetails() -> None:
+  """_DefaultDecode raises Error when finish_reason='tool_calls' but tool_calls list is empty."""
+  choice: dict[str, Any] = {
+    'finish_reason': 'tool_calls',
+    'message': {'content': '', 'tool_calls': []},
+  }
+  with pytest.raises(llama.Error, match="finish_reason='tool_calls'"):
+    llama._DefaultDecode(choice)  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# _DetectToolHandler
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+  ('model_id', 'expected'),
+  [
+    ('qwen2-7b', llama._QwenDecode),
+    ('qwen3-8b-instruct', llama._QwenDecode),
+    ('mistral-7b', llama._DefaultDecode),
+    ('llama3-text', llama._DefaultDecode),
+  ],
+)
+def testDetectToolHandler(model_id: str, expected: object) -> None:
+  """_DetectToolHandler returns the expected decoder for a given model identifier."""
+  assert llama._DetectToolHandler(model_id) is expected
+
+
+# ---------------------------------------------------------------------------
+# _ExecuteToolCalls
+# ---------------------------------------------------------------------------
+
+
+def testExecuteToolCallsSuccess() -> None:
+  """_ExecuteToolCalls executes a tool and appends the result to messages."""
+  messages: list[llama.JSONDict] = []
+  tool_calls: list[llama.JSONDict] = [
+    {'id': 'c1', 'function': {'name': 'double', 'arguments': {'x': 3}}},
+  ]
+  result_holder: list[int] = []
+
+  def double(x: int) -> int:
+    """Return doubled.
+
+    Args:
+      x: input
+
+    Returns:
+      doubled x
+
+    """
+    result_holder.append(x * 2)
+    return x * 2
+
+  llama._ExecuteToolCalls(tool_calls, {'double': double}, messages)
+  assert messages[-1]['content'] == repr(6)
+  assert messages[-1]['name'] == 'double'
+  assert messages[-1]['tool_call_id'] == 'c1'
+
+
+def testExecuteToolCallsWithJsonStringArgs() -> None:
+  """_ExecuteToolCalls parses JSON string arguments before passing to the tool."""
+  messages: list[llama.JSONDict] = []
+  args_str = json.dumps({'x': 7})
+  tool_calls: list[llama.JSONDict] = [
+    {'id': 'c2', 'function': {'name': 'triple', 'arguments': args_str}},
+  ]
+
+  def triple(x: int) -> int:
+    """Return tripled.
+
+    Args:
+      x: input
+
+    Returns:
+      tripled x
+
+    """
+    return x * 3
+
+  llama._ExecuteToolCalls(tool_calls, {'triple': triple}, messages)
+  assert messages[-1]['content'] == repr(21)
+
+
+def testExecuteToolCallsUnknownTool() -> None:
+  """_ExecuteToolCalls raises Error when the called tool is not in the tool map."""
+  messages: list[llama.JSONDict] = []
+  tool_calls: list[llama.JSONDict] = [
+    {'id': 'c3', 'function': {'name': 'ghost', 'arguments': {}}},
+  ]
+  with pytest.raises(llama.Error, match="unknown tool 'ghost'"):
+    llama._ExecuteToolCalls(tool_calls, {}, messages)
+
+
+def testExecuteToolCallsInvalidJson() -> None:
+  """_ExecuteToolCalls raises Error when the arguments string is not valid JSON."""
+  messages: list[llama.JSONDict] = []
+  tool_calls: list[llama.JSONDict] = [
+    {'id': 'c4', 'function': {'name': 'f', 'arguments': 'not json!'}},
+  ]
+
+  def f() -> str:
+    """Return nothing.
+
+    Returns:
+      empty string
+
+    """
+    return ''
+
+  with pytest.raises(llama.Error, match='invalid JSON'):
+    llama._ExecuteToolCalls(tool_calls, {'f': f}, messages)
+
+
+def testExecuteToolCallsToolRaisesException() -> None:
+  """_ExecuteToolCalls captures exceptions from the tool and feeds them back as results."""
+  messages: list[llama.JSONDict] = []
+  tool_calls: list[llama.JSONDict] = [
+    {'id': 'c5', 'function': {'name': 'bomb', 'arguments': {}}},
+  ]
+
+  def bomb() -> None:
+    """Raise always.
+
+    Raises:
+      ValueError: always
+
+    """
+    raise ValueError('boom')
+
+  llama._ExecuteToolCalls(tool_calls, {'bomb': bomb}, messages)
+  # error captured as the tool result (repr of the exception)
+  assert 'boom' in str(messages[-1]['content'])
+
+
+def testExecuteToolCallsFallsBackToPositionalArgs() -> None:
+  """_ExecuteToolCalls falls back to positional args when the tool rejects keyword args."""
+  messages: list[llama.JSONDict] = []
+  tool_calls: list[llama.JSONDict] = [
+    {'id': 'c6', 'function': {'name': 'builtin_max', 'arguments': {'a': 3, 'b': 7}}},
+  ]
+  # max() is a builtin that rejects keyword args like 'a' and 'b'
+  # We simulate with a pure function that also rejects kwargs for testing positional fallback
+
+  # Use a real positional-only-like function via a special wrapper
+  # Actually, just test with a function that raises TypeError with 'keyword arguments' message
+  # and then test that the fallback to positional args is called
+  call_log: list[tuple[object, ...]] = []
+
+  def _positional_only(*args: object, **kwargs: object) -> str:
+    if kwargs:
+      raise TypeError('keyword arguments not accepted')
+    call_log.append(args)
+    return 'ok'
+
+  llama._ExecuteToolCalls(tool_calls, {'builtin_max': _positional_only}, messages)
+  assert messages[-1]['content'] == repr('ok')
+  # was called with positional args (values from dict)
+  assert call_log[0] == (3, 7)
+
+
+def testExecuteToolCallsTypeErrorNotKeywordRelated() -> None:
+  """_ExecuteToolCalls re-raises TypeError when it is not about keyword arguments."""
+  messages: list[llama.JSONDict] = []
+  tool_calls: list[llama.JSONDict] = [
+    {'id': 'c7', 'function': {'name': 'broken', 'arguments': {'x': 1}}},
+  ]
+
+  def broken(x: int) -> None:  # noqa: ARG001
+    """Raise TypeError.
+
+    Args:
+      x: input
+
+    Raises:
+      TypeError: always
+
+    """
+    raise TypeError('completely unrelated error')
+
+  # TypeError not about 'keyword arguments' → captured as exception result (not re-raised)
+  llama._ExecuteToolCalls(tool_calls, {'broken': broken}, messages)
+  assert 'completely unrelated error' in str(messages[-1]['content'])
+
+
+# ---------------------------------------------------------------------------
+# _CallLlamaAct
+# ---------------------------------------------------------------------------
+
+
+def _MakeLlamaActResponse(
+  content: str = 'final answer',
+  finish_reason: str = 'stop',
+  tool_calls: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+  """Build a create_chat_completion response for the tool-use loop.
+
+  Args:
+    content: message content
+    finish_reason: the reason the completion finished
+    tool_calls: optional list of tool_call dicts
+
+  Returns:
+    A dict compatible with llama_types.CreateChatCompletionResponse
+
+  """
+  msg: dict[str, Any] = {'role': 'assistant', 'content': content}
+  if tool_calls is not None:
+    msg['tool_calls'] = tool_calls
+  return {
+    'id': 'chat-act-test',
+    'object': 'chat.completion',
+    'created': 1234567890,
+    'model': 'test-model',
+    'choices': [{'index': 0, 'message': msg, 'finish_reason': finish_reason}],
+    'usage': {'prompt_tokens': 5, 'completion_tokens': 3, 'total_tokens': 8},
+  }
+
+
+def testCallLlamaActNoToolCalls() -> None:
+  """_CallLlamaAct returns the model's text response when it makes no tool calls."""
+  llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
+  # Qwen-style: finish_reason='stop' with no tool_call tags
+  llm_mock.create_chat_completion.return_value = _MakeLlamaActResponse('first and only answer')
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(model_id='qwen3-test', seed=5000)
+  messages: list[llama.JSONDict] = [{'role': 'system', 'content': 'sys'}]
+  with typeguard.suppress_type_checks():
+    result: str = llama._CallLlamaAct(llm_mock, messages, [], {}, config, 1000)
+  assert result == 'first and only answer'
+
+
+def testCallLlamaActLogsUsage() -> None:
+  """_CallLlamaAct logs token usage from the final response."""
+  llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
+  llm_mock.create_chat_completion.return_value = _MakeLlamaActResponse('done')
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(model_id='qwen3-test', seed=5000)
+  messages: list[llama.JSONDict] = [{'role': 'system', 'content': 'sys'}]
+  with (
+    mock.patch('transai.core.llama.logging') as log_mock,
+    typeguard.suppress_type_checks(),
+  ):
+    llama._CallLlamaAct(llm_mock, messages, [], {}, config, 1000)
+  # verify that debug logging was called (token usage)
+  log_mock.debug.assert_called()
+
+
+def testCallLlamaActRaisesOnNoChoices() -> None:
+  """_CallLlamaAct raises Error when the model returns no choices."""
+  llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
+  response: dict[str, Any] = {'choices': [], 'usage': {}}
+  llm_mock.create_chat_completion.return_value = response
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(model_id='qwen3', seed=5000)
+  messages: list[llama.JSONDict] = [{'role': 'system', 'content': 'sys'}]
+  with (
+    pytest.raises(llama.Error, match='no choices'),
+    typeguard.suppress_type_checks(),
+  ):
+    llama._CallLlamaAct(llm_mock, messages, [], {}, config, 1000)
+
+
+def testCallLlamaActWithQwenToolCall() -> None:
+  """_CallLlamaAct completes a full tool-use round with a Qwen-style tool call."""
+  llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(model_id='qwen3-test', seed=5000)
+  tool_json = json.dumps({'name': 'add_one', 'arguments': {'n': 4}})
+  # First response: Qwen tool call style
+  first = _MakeLlamaActResponse(content=f'<tool_call>{tool_json}</tool_call>', finish_reason='stop')
+  # Second response: final answer
+  second = _MakeLlamaActResponse(content='the answer is 5', finish_reason='stop')
+  llm_mock.create_chat_completion.side_effect = [first, second]
+
+  def add_one(n: int) -> int:
+    """Return n+1.
+
+    Args:
+      n: input
+
+    Returns:
+      n + 1
+
+    """
+    return n + 1
+
+  tool_map = {'add_one': add_one}
+  with (
+    mock.patch('transai.core.llama._ToolID', return_value='tool-id-001'),
+    typeguard.suppress_type_checks(),
+  ):
+    result: str = llama._CallLlamaAct(
+      llm_mock, [{'role': 'system', 'content': 'sys'}], [], tool_map, config, 1000
+    )
+  assert 'the answer is 5' in result

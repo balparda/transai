@@ -56,9 +56,10 @@ class LMStudioWorker(ai.AIWorker):
         logging.info(f'Unloading existing model {loaded.identifier!r} to free resources')
         self._client.llm.unload(loaded.identifier)
       else:
-        info: ai.LoadedModel = _ExtractModelInfo(
-          loaded, ai.MakeAIModelConfig(model_id=loaded.identifier)
+        seeded_config: ai.AIModelConfig = self._ConfigSeed(
+          ai.MakeAIModelConfig(model_id=loaded.identifier)
         )
+        info: ai.LoadedModel = _ExtractModelInfo(loaded, seeded_config)
         self._RegisterModel(info)
 
   def Close(self) -> None:

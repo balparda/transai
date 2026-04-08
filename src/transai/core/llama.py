@@ -35,7 +35,7 @@ type JSONValue = (
   | None
 )
 type JSONDict = dict[str, JSONValue]
-# TODO: move to transcrypto
+# TODO: remove after transcrypto > 2.5.1
 
 _ToolID: collections.abc.Callable[[], str] = lambda: str(saferandom.RandInt(2**16, ai.AI_MAX_SEED))
 

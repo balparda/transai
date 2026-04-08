@@ -29,6 +29,7 @@ Since version 1.0.0 it is a PyPI package: <https://pypi.org/project/transai/>
     - [Querying a model (text)](#querying-a-model-text)
     - [Querying a model (structured JSON)](#querying-a-model-structured-json)
     - [Vision models (images)](#vision-models-images)
+    - [Tool use (function calling)](#tool-use-function-calling)
     - [Image utilities](#image-utilities)
   - [AI Guide](#ai-guide)
     - [Vision Models](#vision-models)
@@ -132,7 +133,7 @@ TransAI is a Python library and CLI tool that provides a unified interface for r
 - **LM Studio** (`LMStudioWorker`): connects to a running LM Studio server on localhost via the `lmstudio` client library. This is the recommended and default backend.
 - **llama.cpp** (`LlamaWorker`): loads GGUF model files directly into memory using `llama-cpp-python`. Useful when you want full control without running an LM Studio server.
 
-Both backends share the same abstract interface (`AIWorker`), so you can swap backends without changing your application code. Models can be queried with plain text prompts or with structured output (Pydantic models), and vision models can process images.
+Both backends share the same abstract interface (`AIWorker`), so you can swap backends without changing your application code. Models can be queried with plain text prompts or with structured output (Pydantic models), vision models can process images, and tool-capable models can call Python functions.
 
 ### What TransAI is not
 
@@ -243,6 +244,35 @@ response: str = worker.ModelCall(
 
 Images are automatically resized to fit within 1024px (longest edge) before being sent to the model.
 
+### Tool use (function calling)
+
+Pass Python callables (or fully-qualified dotted names) as `tools`. The model may invoke them during the conversation and TransAI handles the execution round-trip automatically:
+
+```python
+import math
+
+def celsius_to_fahrenheit(celsius: float) -> float:
+  """Convert Celsius to Fahrenheit.
+
+  Args:
+    celsius: temperature in Celsius
+
+  Returns:
+    temperature in Fahrenheit
+
+  """
+  return celsius * 9 / 5 + 32
+
+# tools must be a list of callables; the model may call them zero or more times
+response: str = worker.ModelCall(
+  model_id='qwen3-8b@Q8_0',
+  system_prompt='You are a helpful assistant.',
+  user_prompt='What is 23°C in Fahrenheit? Also, what is the GCD of 48 and 36?',
+  output_format=str,
+  tools=[celsius_to_fahrenheit, math.gcd],
+)
+```
+
 ### Image utilities
 
 The `transai.utils.images` module provides helpers for image preprocessing:
@@ -298,6 +328,12 @@ Query using the llama.cpp backend (direct GGUF loading, no server needed):
 
 ```sh
 transai --no-lms --root ~/.lmstudio/models/ query "Give me an onion soup recipe."
+```
+
+Query with tool use (pass fully-qualified Python callable names; model calls them automatically):
+
+```sh
+transai query --tools math.gcd --tools os.getcwd "What is the GCD of 48 and 36? Also what is my current directory?"
 ```
 
 ### Global flags

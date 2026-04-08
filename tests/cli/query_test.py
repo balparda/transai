@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import pathlib
+import tempfile
 from unittest import mock
 
 import pytest
@@ -86,3 +87,40 @@ def testQueryWarnsSeedWithNoFreeResources() -> None:
   assert result.exit_code == 0, result.output
   worker_mock.LoadModel.assert_called_once()
   worker_mock.ModelCall.assert_called_once()
+
+
+def testQueryWithToolsPassesToolsToModelCall() -> None:
+  """Query --tools option passes tool names through to ModelCall."""
+  worker_mock = mock.MagicMock()
+  worker_mock.LoadModel.return_value = (ai.MakeAIModelConfig(tooling=True), {})
+  worker_mock.ModelCall.return_value = 'result with tools'
+  with mock.patch.object(lms, 'LMStudioWorker', return_value=worker_mock):
+    result: testing.Result = transai_test.CallCLI(
+      ['query', '--tools', 'math.gcd', '--tools', 'os.getcwd', 'what time is it?']
+    )
+  assert result.exit_code == 0, result.output
+  worker_mock.ModelCall.assert_called_once()
+  _args, kwargs = worker_mock.ModelCall.call_args
+  assert kwargs.get('tools') == ['math.gcd', 'os.getcwd']
+
+
+def testQueryWithImagesAndTools() -> None:
+  """Query supports providing both --images and --tools at the same time."""
+  worker_mock = mock.MagicMock()
+  worker_mock.LoadModel.return_value = (ai.MakeAIModelConfig(vision=True, tooling=True), {})
+  worker_mock.ModelCall.return_value = 'vision+tool answer'
+  with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_img:
+    tmp_img_path = pathlib.Path(tmp_img.name)
+    tmp_img.write(b'\x89PNG\r\n\x1a\n' + b'\x00' * 20)
+  try:
+    with mock.patch.object(lms, 'LMStudioWorker', return_value=worker_mock):
+      result: testing.Result = transai_test.CallCLI(
+        ['query', '--images', str(tmp_img_path), '--tools', 'math.gcd', 'describe this']
+      )
+    assert result.exit_code == 0, result.output
+    worker_mock.ModelCall.assert_called_once()
+    _args, kwargs = worker_mock.ModelCall.call_args
+    assert kwargs.get('tools') == ['math.gcd']
+    assert kwargs.get('images') is not None
+  finally:
+    tmp_img_path.unlink(missing_ok=True)
