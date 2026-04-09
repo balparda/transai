@@ -264,6 +264,7 @@ venv = ".venv"
 include = [ "scripts", "src", "tests", "tests_integration" ]
 extraPaths = [ ".", "src" ]  # needed to find tests/ directory modules
 exclude = [
+  "**/.*",
   "**/.venv",
   "**/__pycache__",
   "**/.mypy_cache",
@@ -271,6 +272,7 @@ exclude = [
   "**/.ruff_cache",
   "**/dist",
   "**/build",
+  "**/node_modules",
 ]
 
 executionEnvironments = [
