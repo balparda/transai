@@ -12,7 +12,7 @@ build-backend = "poetry.core.masonry.api"
 [project]
 
 name = "transai"
-version = "1.1.0"  # also update src/transai/__init__.py
+version = "1.2.0"  # also update src/transai/__init__.py
 
 description = "AI library and helpers (Python/Poetry/Typer - LM Studio & llama.cpp)"
 license = "Apache-2.0"
@@ -46,7 +46,7 @@ license-files = [ "LICENSE" ]
 
 dependencies = [
 
-  "transcrypto>=2.5.1",
+  "transcrypto>=2.6.0",
 
   # best place for project dependencies, if possible
   # development-only dependencies go in the [tool.poetry.group.dev.dependencies] section below
@@ -108,7 +108,7 @@ python = "^3.12"  # if version changes, remember to change README.md
 [tool.poetry.group.dev.dependencies]
 
 # basic, all projects should have
-ruff = "^0.15.9"
+ruff = "^0.15.10"
 mypy = "^1.20"
 pytest = "^9.0"
 pytest-cov = "^7.1"

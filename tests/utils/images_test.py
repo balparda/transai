@@ -29,7 +29,7 @@ _TEST_IMAGES_PATH: pathlib.Path = pathlib.Path(__file__).parent.parent / 'data' 
 # ---------------------------------------------------------------------------
 
 
-def _ReadTestImage(name: str, /) -> bytes:
+def _ReadTestImage(name: str) -> bytes:
   """Read a binary test image by filename from the shared test-images directory.
 
   Args:
@@ -42,7 +42,7 @@ def _ReadTestImage(name: str, /) -> bytes:
   return (_TEST_IMAGES_PATH / name).read_bytes()
 
 
-def _MakeAnimatedGif(n_frames: int, /, *, width: int = 20, height: int = 20) -> bytes:
+def _MakeAnimatedGif(n_frames: int, *, width: int = 20, height: int = 20) -> bytes:
   """Create a minimal in-memory animated GIF with ``n_frames`` distinct frames.
 
   Each frame has a different shade of red so that Pillow records them as
@@ -71,7 +71,7 @@ def _MakeAnimatedGif(n_frames: int, /, *, width: int = 20, height: int = 20) -> 
   return buf.getvalue()
 
 
-def _PngSize(png_bytes: bytes, /) -> tuple[int, int]:
+def _PngSize(png_bytes: bytes) -> tuple[int, int]:
   """Return (width, height) of a PNG from its raw bytes.
 
   Args:
@@ -340,7 +340,7 @@ def test_animation_frames_outer_oserror_after_frames_logged(
   """
   frame_img = Image.new('RGB', (5, 5), color=(100, 100, 100))
 
-  def _bad_iterator(_anim: object, /) -> Iterator[Image.Image]:
+  def _bad_iterator(_anim: object) -> Iterator[Image.Image]:
     yield frame_img  # frame_count=0
     yield frame_img  # frame_count=1
     yield frame_img  # frame_count=2

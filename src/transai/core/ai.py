@@ -144,7 +144,7 @@ def MakeAIModelConfig(**overrides: object) -> AIModelConfig:
 class AIWorker(abc.ABC):
   """Abstract base class for AI worker. Inherit and implement, do not use directly."""
 
-  def __init__(self, /, *, timeout: float | None = DEFAULT_TIMEOUT) -> None:
+  def __init__(self, *, timeout: float | None = DEFAULT_TIMEOUT) -> None:
     """Initialize the worker.
 
     Args:
@@ -188,7 +188,7 @@ class AIWorker(abc.ABC):
     gc.collect()  # second pass for cycles
 
   @final
-  def _RegisterModel(self, model: LoadedModel, /) -> None:
+  def _RegisterModel(self, model: LoadedModel) -> None:
     """Register a loaded model in the worker's internal state.
 
     This should be called by the subclass implementations after successfully loading a model,
@@ -215,7 +215,7 @@ class AIWorker(abc.ABC):
 
   @final
   def LoadModel(
-    self, config: AIModelConfig, /, *, force: bool = False, ignore_quant: bool = True
+    self, config: AIModelConfig, *, force: bool = False, ignore_quant: bool = True
   ) -> tuple[AIModelConfig, AIModelMetadata]:
     """Load the model with the given configuration.
 
@@ -277,7 +277,7 @@ class AIWorker(abc.ABC):
         raise Error(f'Model {config["model_id"]!r} load error @{load_timer}') from err
 
   @abc.abstractmethod
-  def _LoadNew(self, config: AIModelConfig, /) -> LoadedModel:
+  def _LoadNew(self, config: AIModelConfig) -> LoadedModel:
     """Load the model with the given configuration.
 
     Args:
@@ -299,7 +299,7 @@ class AIWorker(abc.ABC):
     """
 
   @final
-  def _ConfigSeed(self, config: AIModelConfig, /) -> AIModelConfig:  # noqa: PLR6301
+  def _ConfigSeed(self, config: AIModelConfig) -> AIModelConfig:  # noqa: PLR6301
     """Fill in seed configuration field for the AI model; check validity of some fields.
 
     Args:
@@ -343,7 +343,6 @@ class AIWorker(abc.ABC):
     system_prompt: str,
     user_prompt: str,
     output_format: type[T],
-    /,
     *,
     images: list[AIImageInput] | None = None,
     tools: list[AIToolInput] | None = None,
@@ -412,7 +411,6 @@ class AIWorker(abc.ABC):
     user_prompt: str,
     output_format: type[T],
     call_seed: int,
-    /,
     *,
     images: list[AIImageInput] | None = None,
     tools: list[AnyCallable] | None = None,

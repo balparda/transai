@@ -37,7 +37,7 @@ class _ConcreteWorker(ai.AIWorker):
     self._load_return: ai.LoadedModel | None = None
     self._call_return: object = 'default'
 
-  def _LoadNew(self, _config: ai.AIModelConfig, /) -> ai.LoadedModel:
+  def _LoadNew(self, config: ai.AIModelConfig) -> ai.LoadedModel:  # noqa: ARG002
     """Return whatever was configured for the test."""  # noqa: DOC201, DOC501
     if self._load_return is None:
       raise ai.Error('_load_return not set')
@@ -45,12 +45,11 @@ class _ConcreteWorker(ai.AIWorker):
 
   def _Call[T: pydantic.BaseModel | str](
     self,
-    _model: ai.LoadedModel,
-    _system_prompt: str,
-    _user_prompt: str,
-    _output_format: type[T],
-    _call_seed: int,
-    /,
+    model: ai.LoadedModel,  # noqa: ARG002
+    system_prompt: str,  # noqa: ARG002
+    user_prompt: str,  # noqa: ARG002
+    output_format: type[T],  # noqa: ARG002
+    call_seed: int,  # noqa: ARG002
     *,
     images: list[ai.AIImageInput] | None = None,  # noqa: ARG002
     tools: list[ai.AnyCallable] | None = None,  # noqa: ARG002

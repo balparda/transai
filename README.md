@@ -444,17 +444,22 @@ Facts we can use to make queries that are hard to solve without tools and do not
 Armed with this we can have LMS/Llama queries for `qwen3-8b` model (the same as above):
 
 ```sh
-$ poetry run transai -m qwen3-8b@Q8_0 --lms --seed 666 query "Compute the exact GCD of 196802368656419 and 171964944459037. Compute the exact modular inverse of 12357067 modulus 11812343." --tools transai.cli.query.GCD --tools transai.cli.query.ModInv --free
+$ poetry run transai -m qwen3-8b@Q8_0 --lms --seed 666 query "Compute the exact GCD of 196802368656419 and 171964944459037. Compute the exact modular inverse of 12357067 modulus 11812343." --tools transcrypto.core.modmath.GCD --tools transcrypto.core.modmath.ModInv --free
 The greatest common divisor (GCD) of 196802368656419 and 171964944459037 is **13791229**.
 
 The modular inverse of 12357067 modulo 11812343 is **10557757**, which satisfies $(12357067 \times 10557757) \bmod 11812343 = 1$.
 
-These results are verified using the Euclidean algorithm for GCD and the extended Euclidean algorithm for the modular inverse.
+These results are computed using the Euclidean algorithm for GCD and the extended Euclidean algorithm for the modular inverse.
 
-$ poetry run transai -m qwen3-8b-gguf --no-lms --seed 666 query "Compute the exact GCD of 196802368656419 and 171964944459037. Compute the exact modular inverse of 12357067 modulus 11812343." --tools transai.cli.query.GCD --tools transai.cli.query.ModInv
+$ poetry run transai -m qwen3-8b-gguf --no-lms --seed 666 query "Compute the exact GCD of 196802368656419 and 171964944459037. Compute the exact modular inverse of 12357067 modulus 11812343." --tools transcrypto.core.modmath.GCD --tools transcrypto.core.modmath.ModInv
 The greatest common divisor (GCD) of 196802368656419 and 171964944459037 is **13791229**.
 
-The modular inverse of 12357067 modulo 11812343 is **10557757**. This means $12357067 \times 10557757 \equiv 1 \pmod{11812343}$.
+The modular inverse of 12357067 modulo 11812343 is **10557757**.
+
+Final answers:
+$$
+\text{GCD} = \boxed{13791229}, \quad \text{Modular Inverse} = \boxed{10557757}
+$$
 ```
 
 ## Project Design

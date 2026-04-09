@@ -90,7 +90,7 @@ def test_installed_cli_smoke(tmp_path: pathlib.Path, models_root: pathlib.Path) 
 
 
 def _query_call(
-  cli_paths: dict[str, pathlib.Path], models_root: pathlib.Path, data_dir: pathlib.Path, /
+  cli_paths: dict[str, pathlib.Path], models_root: pathlib.Path, data_dir: pathlib.Path
 ) -> None:
   """Run a real llama.cpp text query with the tiny test model.
 

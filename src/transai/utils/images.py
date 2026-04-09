@@ -21,7 +21,7 @@ _ANIMATION_FRAMES_TARGET: int = 10  # target number of frames to decimate to for
 
 
 def _ImageToScaledPNGBytes(
-  img_obj: Image.Image, /, *, max_pixels: int = _VISION_MAX_IMAGE_PIXELS
+  img_obj: Image.Image, *, max_pixels: int = _VISION_MAX_IMAGE_PIXELS
 ) -> bytes:
   """Down-scale an image so its longest edge is at most `max_pixels`.
 
@@ -53,7 +53,7 @@ def _ImageToScaledPNGBytes(
 
 
 def ResizeImageForVision(
-  image_bytes: bytes, /, *, max_pixels: int = _VISION_MAX_IMAGE_PIXELS
+  image_bytes: bytes, *, max_pixels: int = _VISION_MAX_IMAGE_PIXELS
 ) -> bytes:
   """Down-scale an image so its longest edge is at most `max_pixels`.
 
@@ -73,7 +73,6 @@ def ResizeImageForVision(
 
 def AnimationFrames(
   img_bin: bytes,
-  /,
   *,
   max_pixels: int = _VISION_MAX_ANIMATION_PIXELS,
   decimation: bool = True,

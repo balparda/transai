@@ -23,7 +23,7 @@ class LMStudioWorker(ai.AIWorker):
   """AI worker implementation using LMStudio. Use as context manager."""
 
   def __init__(
-    self, /, *, timeout: float | None = ai.DEFAULT_TIMEOUT, free_resources: bool = True
+    self, *, timeout: float | None = ai.DEFAULT_TIMEOUT, free_resources: bool = True
   ) -> None:
     """Connect to LM Studio API server, do some checks, unload existing models.
 
@@ -74,7 +74,7 @@ class LMStudioWorker(ai.AIWorker):
     self._client.close()
     super().Close()
 
-  def _LoadNew(self, config: ai.AIModelConfig, /) -> ai.LoadedModel:
+  def _LoadNew(self, config: ai.AIModelConfig) -> ai.LoadedModel:
     """Load the model with the given configuration.
 
     Args:
@@ -152,7 +152,6 @@ class LMStudioWorker(ai.AIWorker):
     user_prompt: str,
     output_format: type[T],
     call_seed: int,
-    /,
     *,
     images: list[ai.AIImageInput] | None = None,
     tools: list[ai.AnyCallable] | None = None,
@@ -295,7 +294,7 @@ def _CallLMSAct(
   return '\n'.join(messages)  # type: ignore[return-value]
 
 
-def _ExtractModelInfo(model: lmstudio.LLM, config: ai.AIModelConfig, /) -> ai.LoadedModel:
+def _ExtractModelInfo(model: lmstudio.LLM, config: ai.AIModelConfig) -> ai.LoadedModel:
   """Extract and validate model information from the given LMStudio LLM instance.
 
   Args:

@@ -14,7 +14,6 @@ from transcrypto.utils import config as app_config
 from transcrypto.utils import logging as cli_logging
 
 from tests import transai_test
-from transai.cli import query
 from transai.core import ai, llama, lms
 
 
@@ -130,9 +129,3 @@ def testQueryWithImagesAndTools() -> None:
     assert kwargs.get('images') is not None
   finally:
     tmp_img_path.unlink(missing_ok=True)
-
-
-def testExternalCalls() -> None:
-  """External methods."""
-  assert query.GCD(196802368656419, 171964944459037) == 13791229
-  assert query.ModInv(12357067, 11812343) == 10557757

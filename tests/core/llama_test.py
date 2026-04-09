@@ -20,6 +20,7 @@ import pydantic
 import pytest
 import typeguard
 from llama_cpp import llama_chat_format
+from transcrypto.utils import base
 
 from transai.core import ai, llama
 
@@ -938,8 +939,8 @@ def testDetectToolHandlerRaisesOnUnknown() -> None:
 
 def testExecuteToolCallsSuccess() -> None:
   """_ExecuteToolCalls executes a tool and appends the result to messages."""
-  messages: list[llama.JSONDict] = []
-  tool_calls: list[llama.JSONDict] = [
+  messages: list[base.JSONDict] = []
+  tool_calls: list[base.JSONDict] = [
     {'id': 'c1', 'function': {'name': 'double', 'arguments': {'x': 3}}},
   ]
   result_holder: list[int] = []
@@ -965,9 +966,9 @@ def testExecuteToolCallsSuccess() -> None:
 
 def testExecuteToolCallsWithJsonStringArgs() -> None:
   """_ExecuteToolCalls parses JSON string arguments before passing to the tool."""
-  messages: list[llama.JSONDict] = []
+  messages: list[base.JSONDict] = []
   args_str = json.dumps({'x': 7})
-  tool_calls: list[llama.JSONDict] = [
+  tool_calls: list[base.JSONDict] = [
     {'id': 'c2', 'function': {'name': 'triple', 'arguments': args_str}},
   ]
 
@@ -989,8 +990,8 @@ def testExecuteToolCallsWithJsonStringArgs() -> None:
 
 def testExecuteToolCallsUnknownTool() -> None:
   """_ExecuteToolCalls raises Error when the called tool is not in the tool map."""
-  messages: list[llama.JSONDict] = []
-  tool_calls: list[llama.JSONDict] = [
+  messages: list[base.JSONDict] = []
+  tool_calls: list[base.JSONDict] = [
     {'id': 'c3', 'function': {'name': 'ghost', 'arguments': {}}},
   ]
   with pytest.raises(llama.Error, match="unknown tool 'ghost'"):
@@ -999,8 +1000,8 @@ def testExecuteToolCallsUnknownTool() -> None:
 
 def testExecuteToolCallsInvalidJson() -> None:
   """_ExecuteToolCalls raises Error when the arguments string is not valid JSON."""
-  messages: list[llama.JSONDict] = []
-  tool_calls: list[llama.JSONDict] = [
+  messages: list[base.JSONDict] = []
+  tool_calls: list[base.JSONDict] = [
     {'id': 'c4', 'function': {'name': 'f', 'arguments': 'not json!'}},
   ]
 
@@ -1019,8 +1020,8 @@ def testExecuteToolCallsInvalidJson() -> None:
 
 def testExecuteToolCallsToolRaisesException() -> None:
   """_ExecuteToolCalls captures exceptions from the tool and feeds them back as results."""
-  messages: list[llama.JSONDict] = []
-  tool_calls: list[llama.JSONDict] = [
+  messages: list[base.JSONDict] = []
+  tool_calls: list[base.JSONDict] = [
     {'id': 'c5', 'function': {'name': 'bomb', 'arguments': {}}},
   ]
 
@@ -1040,8 +1041,8 @@ def testExecuteToolCallsToolRaisesException() -> None:
 
 def testExecuteToolCallsFallsBackToPositionalArgs() -> None:
   """_ExecuteToolCalls falls back to positional args when the tool rejects keyword args."""
-  messages: list[llama.JSONDict] = []
-  tool_calls: list[llama.JSONDict] = [
+  messages: list[base.JSONDict] = []
+  tool_calls: list[base.JSONDict] = [
     {'id': 'c6', 'function': {'name': 'builtin_max', 'arguments': {'a': 3, 'b': 7}}},
   ]
   # max() is a builtin that rejects keyword args like 'a' and 'b'
@@ -1066,8 +1067,8 @@ def testExecuteToolCallsFallsBackToPositionalArgs() -> None:
 
 def testExecuteToolCallsTypeErrorNotKeywordRelated() -> None:
   """_ExecuteToolCalls re-raises TypeError when it is not about keyword arguments."""
-  messages: list[llama.JSONDict] = []
-  tool_calls: list[llama.JSONDict] = [
+  messages: list[base.JSONDict] = []
+  tool_calls: list[base.JSONDict] = [
     {'id': 'c7', 'function': {'name': 'broken', 'arguments': {'x': 1}}},
   ]
 
@@ -1128,7 +1129,7 @@ def testCallLlamaActNoToolCalls() -> None:
   # Qwen-style: finish_reason='stop' with no tool_call tags
   llm_mock.create_chat_completion.return_value = _MakeLlamaActResponse('first and only answer')
   config: ai.AIModelConfig = ai.MakeAIModelConfig(model_id='qwen3-test', seed=5000)
-  messages: list[llama.JSONDict] = [{'role': 'system', 'content': 'sys'}]
+  messages: list[base.JSONDict] = [{'role': 'system', 'content': 'sys'}]
   with typeguard.suppress_type_checks():
     result: str = llama._CallLlamaAct(llm_mock, messages, [], {}, config, 1000)
   assert result == 'first and only answer'
@@ -1139,7 +1140,7 @@ def testCallLlamaActLogsUsage() -> None:
   llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
   llm_mock.create_chat_completion.return_value = _MakeLlamaActResponse('done')
   config: ai.AIModelConfig = ai.MakeAIModelConfig(model_id='qwen3-test', seed=5000)
-  messages: list[llama.JSONDict] = [{'role': 'system', 'content': 'sys'}]
+  messages: list[base.JSONDict] = [{'role': 'system', 'content': 'sys'}]
   with (
     mock.patch('transai.core.llama.logging') as log_mock,
     typeguard.suppress_type_checks(),
@@ -1155,7 +1156,7 @@ def testCallLlamaActRaisesOnNoChoices() -> None:
   response: dict[str, Any] = {'choices': [], 'usage': {}}
   llm_mock.create_chat_completion.return_value = response
   config: ai.AIModelConfig = ai.MakeAIModelConfig(model_id='qwen3', seed=5000)
-  messages: list[llama.JSONDict] = [{'role': 'system', 'content': 'sys'}]
+  messages: list[base.JSONDict] = [{'role': 'system', 'content': 'sys'}]
   with (
     pytest.raises(llama.Error, match='no choices'),
     typeguard.suppress_type_checks(),
