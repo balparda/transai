@@ -294,6 +294,14 @@ def testLMSWorkerLoadRaisesOnReasoning() -> None:
     worker._LoadNew(config)
 
 
+def testLMSWorkerLoadRaisesOnSpecTokens() -> None:
+  """_Load raises Error when config.spec_tokens=<N> (not supported)."""
+  worker, _client = _MakeLMSWorker()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(spec_tokens=True)
+  with pytest.raises(lms.Error, match='spec_tokens is not supported'):
+    worker._LoadNew(config)
+
+
 def testLMSWorkerLoadWarnsOnIgnoredFields() -> None:
   """_Load emits warnings for model_path, kv_cache, flash, gpu_layers, spec_tokens."""
   worker, client_mock = _MakeLMSWorker()
@@ -302,7 +310,6 @@ def testLMSWorkerLoadWarnsOnIgnoredFields() -> None:
     kv_cache=8,
     flash=True,
     gpu_layers=10,
-    spec_tokens=3,
     context=1024,
     seed=5000,
   )

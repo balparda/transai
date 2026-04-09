@@ -8,6 +8,7 @@ import abc
 import collections.abc
 import dataclasses
 import functools
+import gc
 import json
 import logging
 import pathlib
@@ -183,6 +184,8 @@ class AIWorker(abc.ABC):
         logging.info(f'Releasing model {model_id!r}')
         loaded.model.close()  # type: ignore[union-attr]
     self._loaded_models.clear()
+    gc.collect()  # drain any cyclic garbage
+    gc.collect()  # second pass for cycles
 
   @final
   def _RegisterModel(self, model: LoadedModel, /) -> None:

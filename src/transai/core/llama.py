@@ -7,6 +7,7 @@ from __future__ import annotations
 import base64
 import collections.abc
 import contextlib
+import gc
 import json
 import logging
 import os
@@ -125,6 +126,28 @@ class LlamaWorker(ai.AIWorker):
     if not self._models_root.is_dir():
       raise Error(f'models_root is not a directory: {self._models_root}')
     logging.info(f'LLAMA @ {self._models_root}')
+
+  def Close(self) -> None:
+    """Close any started sessions, explicitly freeing vision handlers first.
+
+    Overrides the parent Close() to additionally clear vision (CLIP) chat handlers before
+    closing the underlying llama.cpp models. This ensures CLIP Metal residency sets are
+    released via Python GC (clip_model_free) BEFORE the ggml_metal_device C++ static
+    destructor runs at process exit; without this, the destructor's assertion
+    GGML_ASSERT([rsets->data count] == 0) fires on macOS/Apple Silicon because the
+    chat_handler is not part of the llama.cpp ExitStack and its __del__ is only called
+    during Py_FinalizeEx, which SystemExit (raised by click/typer) bypasses entirely.
+
+    """
+    # clear CLIP vision handlers BEFORE closing the main model so their __del__ fires
+    # immediately via CPython ref-counting → clip_model_free() releases Metal rsets
+    for loaded in self._loaded_models.values():
+      if isinstance(loaded.model, llama_cpp.Llama) and loaded.model.chat_handler is not None:
+        logging.info(f'Releasing vision handler for {loaded.model_id!r}')
+        loaded.model.chat_handler = None
+    gc.collect()  # drain any cyclic garbage so Metal resources are actually freed now
+    gc.collect()  # second pass for cycles
+    super().Close()
 
   def _LoadNew(self, config: ai.AIModelConfig, /) -> ai.LoadedModel:
     """Load the model with the given configuration.
