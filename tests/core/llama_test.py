@@ -15,6 +15,7 @@ from typing import Any
 from unittest import mock
 
 import llama_cpp
+import lmstudio
 import pydantic
 import pytest
 import typeguard
@@ -95,6 +96,92 @@ def testLlamaWorkerInitVerboseFlag(tmp_path: pathlib.Path) -> None:
   """Verbose flag is stored correctly."""
   w = llama.LlamaWorker(tmp_path, verbose=True)
   assert w._verbose is True
+
+
+# ---------------------------------------------------------------------------
+# LlamaWorker.Close
+# ---------------------------------------------------------------------------
+
+
+def testCloseWithNoHandlerCallsSuperClose(tmp_path: pathlib.Path) -> None:
+  """Close() with a model that has no chat_handler calls super().Close() cleanly."""
+  w = llama.LlamaWorker(tmp_path)
+  llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
+  llm_mock.chat_handler = None
+  loaded = ai.LoadedModel(
+    model_id='test@q4_0',
+    seed_state=b'\x00' * 32,
+    config=ai.MakeAIModelConfig(model_id='test@q4_0', seed=42),
+    metadata={},
+    model=llm_mock,
+  )
+  w._loaded_models['test@q4_0'] = loaded
+  w.Close()
+  # super().Close() calls model.close()
+  llm_mock.close.assert_called_once()
+  assert w._loaded_models == {}
+
+
+def testCloseSkipsNonLlamaModels(tmp_path: pathlib.Path) -> None:
+  """Close() skips the handler-drain logic for non-llama_cpp.Llama model types."""
+  w = llama.LlamaWorker(tmp_path)
+  lms_mock = mock.MagicMock(spec=lmstudio.LLM)
+  loaded = ai.LoadedModel(
+    model_id='lms@q4_0',
+    seed_state=b'\x00' * 32,
+    config=ai.MakeAIModelConfig(model_id='lms@q4_0', seed=42),
+    metadata={},
+    model=lms_mock,
+  )
+  w._loaded_models['lms@q4_0'] = loaded
+  # should not raise and should not call close() (lmstudio models don't have close())
+  w.Close()
+  assert w._loaded_models == {}
+
+
+def testCloseWithHandlerDrainsExitStack(tmp_path: pathlib.Path) -> None:
+  """Close() calls _exit_stack.close() on a handler that has one."""
+  w = llama.LlamaWorker(tmp_path)
+  exit_stack_mock = mock.MagicMock()
+  handler_mock = mock.MagicMock(spec=llama_chat_format.Qwen25VLChatHandler)
+  handler_mock._exit_stack = exit_stack_mock
+  llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
+  llm_mock.chat_handler = handler_mock
+  loaded = ai.LoadedModel(
+    model_id='vision@q4_0',
+    seed_state=b'\x00' * 32,
+    config=ai.MakeAIModelConfig(model_id='vision@q4_0', seed=42, vision=True),
+    metadata={},
+    model=llm_mock,
+  )
+  w._loaded_models['vision@q4_0'] = loaded
+  w.Close()
+  exit_stack_mock.close.assert_called_once()
+  assert llm_mock.chat_handler is None
+  llm_mock.close.assert_called_once()  # type: ignore[unreachable]  # it **IS** reachable!!
+
+
+def testCloseWithHandlerExitStackRaisesWarnsAndContinues(tmp_path: pathlib.Path) -> None:
+  """Close() logs a warning if _exit_stack.close() raises, but still completes normally."""
+  w = llama.LlamaWorker(tmp_path)
+  exit_stack_mock = mock.MagicMock()
+  exit_stack_mock.close.side_effect = RuntimeError('Metal exploded')
+  handler_mock = mock.MagicMock(spec=llama_chat_format.Qwen25VLChatHandler)
+  handler_mock._exit_stack = exit_stack_mock
+  llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
+  llm_mock.chat_handler = handler_mock
+  loaded = ai.LoadedModel(
+    model_id='vision@q4_0',
+    seed_state=b'\x00' * 32,
+    config=ai.MakeAIModelConfig(model_id='vision@q4_0', seed=42, vision=True),
+    metadata={},
+    model=llm_mock,
+  )
+  w._loaded_models['vision@q4_0'] = loaded
+  w.Close()  # must not propagate the RuntimeError
+  exit_stack_mock.close.assert_called_once()
+  llm_mock.close.assert_called_once()
+  assert w._loaded_models == {}
 
 
 # ---------------------------------------------------------------------------

@@ -130,23 +130,39 @@ class LlamaWorker(ai.AIWorker):
   def Close(self) -> None:
     """Close any started sessions, explicitly freeing vision handlers first.
 
-    Overrides the parent Close() to additionally clear vision (CLIP) chat handlers before
-    closing the underlying llama.cpp models. This ensures CLIP Metal residency sets are
-    released via Python GC (clip_model_free) BEFORE the ggml_metal_device C++ static
-    destructor runs at process exit; without this, the destructor's assertion
-    GGML_ASSERT([rsets->data count] == 0) fires on macOS/Apple Silicon because the
-    chat_handler is not part of the llama.cpp ExitStack and its __del__ is only called
-    during Py_FinalizeEx, which SystemExit (raised by click/typer) bypasses entirely.
+    Overrides the parent Close() to additionally close vision (CLIP/mtmd) chat handlers
+    before closing the underlying llama.cpp models. This ensures vision Metal residency
+    sets are released BEFORE ggml_metal_device C++ static destructors run at process exit.
+
+    In llama_cpp_python >= 0.3, Llava15ChatHandler (and subclasses like Qwen25VLChatHandler)
+    use an ExitStack to register a mtmd_free() cleanup callback — they have NO __del__.
+    This means setting chat_handler = None only orphans the handler; the ExitStack callbacks
+    are never invoked, so mtmd_ctx/CLIP Metal residency sets remain registered forever,
+    causing GGML_ASSERT([rsets->data count] == 0) in ggml_metal_device_free at process exit
+    (triggered by click/typer's SystemExit → C exit() → __cxa_finalize_ranges).
+    Explicitly calling _exit_stack.close() drains mtmd_free() synchronously, releasing
+    the Metal context BEFORE llama_free() reduces the global device refcount to zero.
 
     """
-    # clear CLIP vision handlers BEFORE closing the main model so their __del__ fires
-    # immediately via CPython ref-counting → clip_model_free() releases Metal rsets
+    # drain each vision handler's ExitStack BEFORE closing the main llama.cpp model;
+    # this invokes the mtmd_free() callback registered during _init_mtmd_context(),
+    # properly tearing down the Metal context while the global device is still alive
     for loaded in self._loaded_models.values():
-      if isinstance(loaded.model, llama_cpp.Llama) and loaded.model.chat_handler is not None:
-        logging.info(f'Releasing vision handler for {loaded.model_id!r}')
-        loaded.model.chat_handler = None
-    gc.collect()  # drain any cyclic garbage so Metal resources are actually freed now
-    gc.collect()  # second pass for cycles
+      if not isinstance(loaded.model, llama_cpp.Llama):
+        continue
+      handler = loaded.model.chat_handler
+      if handler is None:
+        continue
+      logging.info(f'Releasing vision handler for {loaded.model_id!r}')
+      if hasattr(handler, '_exit_stack'):
+        logging.info(f'  Draining ExitStack (mtmd_free) for vision handler {loaded.model_id!r}')
+        exit_stack = cast('contextlib.ExitStack', handler._exit_stack)  # type: ignore[attr-defined]  # noqa: SLF001
+        try:
+          exit_stack.close()  # invokes mtmd_free() → mtmd_cpp.mtmd_free(ctx) → Metal free
+        except Exception as err:  # noqa: BLE001 --- external library callback, can raise anything
+          logging.warning(f'  ExitStack close failed for {loaded.model_id!r}: {err}')
+      loaded.model.chat_handler = None  # drop the Python reference now that resources are freed
+    gc.collect()  # drain any remaining cyclic garbage
     super().Close()
 
   def _LoadNew(self, config: ai.AIModelConfig, /) -> ai.LoadedModel:
