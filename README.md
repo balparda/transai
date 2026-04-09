@@ -39,6 +39,10 @@ Since version 1.0.0 it is a PyPI package: <https://pypi.org/project/transai/>
     - [Global flags](#global-flags)
     - [CLI Commands Documentation](#cli-commands-documentation)
     - [Color and formatting](#color-and-formatting)
+    - [Test Queries](#test-queries)
+      - [No Vision \& No Tools](#no-vision--no-tools)
+      - [Vision Use](#vision-use)
+      - [Tools Use](#tools-use)
   - [Project Design](#project-design)
     - [Architecture overview](#architecture-overview)
     - [Modules](#modules)
@@ -106,7 +110,7 @@ from transai.utils import images
 For the CLI tool, after installation just run:
 
 ```sh
-transai --help
+poetry run transai --help
 ```
 
 ### Supported platforms
@@ -249,8 +253,6 @@ Images are automatically resized to fit within 1024px (longest edge) before bein
 Pass Python callables (or fully-qualified dotted names) as `tools`. The model may invoke them during the conversation and TransAI handles the execution round-trip automatically:
 
 ```python
-import math
-
 def celsius_to_fahrenheit(celsius: float) -> float:
   """Convert Celsius to Fahrenheit.
 
@@ -263,15 +265,23 @@ def celsius_to_fahrenheit(celsius: float) -> float:
   """
   return celsius * 9 / 5 + 32
 
-# tools must be a list of callables; the model may call them zero or more times
+# tools must be a list of callables or strings; the model may call them zero or more times
 response: str = worker.ModelCall(
   model_id='qwen3-8b@Q8_0',
   system_prompt='You are a helpful assistant.',
   user_prompt='What is 23°C in Fahrenheit? Also, what is the GCD of 48 and 36?',
   output_format=str,
-  tools=[celsius_to_fahrenheit, math.gcd],
+  tools=[celsius_to_fahrenheit, 'math.gcd'],
 )
 ```
+
+Make sure the methods you want the LLM to call:
+
+- have ***good pydocs***;
+- are ***typed***;
+- can be ***called by name***, i.e., they accept calls like `Method(**args_dict)`.
+
+All the information (name, type, descriptions) are sent to the model.
 
 ### Image utilities
 
@@ -321,19 +331,19 @@ These models cannot process images (blind).
 Query a local AI model via LM Studio (server must be running):
 
 ```sh
-transai query "What is the capital of France?"
+poetry run transai query "What is the capital of France?"
 ```
 
 Query using the llama.cpp backend (direct GGUF loading, no server needed):
 
 ```sh
-transai --no-lms --root ~/.lmstudio/models/ query "Give me an onion soup recipe."
+poetry run transai --no-lms --root ~/.lmstudio/models/ query "Give me an onion soup recipe."
 ```
 
 Query with tool use (pass fully-qualified Python callable names; model calls them automatically):
 
 ```sh
-transai query --tools math.gcd --tools os.getcwd "What is the GCD of 48 and 36? Also what is my current directory?"
+poetry run transai query --tools transcrypto.core.modmath.GCD --tools os.getcwd "What is the GCD of 48 and 36? Also what is my current directory?"
 ```
 
 ### Global flags
@@ -357,6 +367,7 @@ transai query --tools math.gcd --tools os.getcwd "What is the GCD of 48 and 36? 
 | `--mmap`/`--no-mmap` | Memory-mapped file loading | `--mmap` |
 | `--flash`/`--no-flash` | Flash attention | `--flash` |
 | `--kv-cache` | KV-cache precision type (GGML type, 4-128) | model default |
+| `--timeout` | Timeout, in seconds; use zero (0) for no limit | 300s |
 
 ### CLI Commands Documentation
 
@@ -373,6 +384,72 @@ Rich provides color output in logging and CLI output. The app:
 - If there is no environment variable and no flag is given, defaults to having color
 
 To control color see [Rich's markup conventions](https://rich.readthedocs.io/en/latest/markup.html).
+
+### Test Queries
+
+For all the queries below, remember to add `-vvv` to debug. The queries should be reproducible as shown here, as long as you have the same model...
+
+#### No Vision & No Tools
+
+LMS/Llama queries for `qwen3-8b` model ([this one](https://huggingface.co/Qwen/Qwen3-8B-GGUF)), version:
+
+`SHA256(Qwen3-8B-Q8_0.gguf) = 408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6`
+
+```sh
+$ poetry run transai -m qwen3-8b@Q8_0 --lms --seed 666 query "what is the capital of france?" --free
+The capital of France is **Paris**. It is a major cultural, political, and economic center in Europe, known for landmarks like the Eiffel Tower, the Louvre
+Museum, and Notre-Dame Cathedral.
+
+$ poetry run transai -m qwen3-8b-gguf --no-lms --seed 666 query "what is the capital of france?"
+The capital of France is **Paris**. It is a major global city known for its rich history, cultural landmarks, and influence in art, fashion, and cuisine.
+Paris has been the political, economic, and cultural center of France since the 3rd century. 🇫🇷✨
+```
+
+#### Vision Use
+
+LMS/Llama queries for `qwen3-vl-32b-instruct` model ([this one](https://huggingface.co/Qwen/Qwen3-VL-32B-Instruct-GGUF)), version:
+
+`SHA256(Qwen3VL-32B-Instruct-Q8_0.gguf) = 936dcdc564cf9f907af80cc581c53e01a275725b29d06ad753b923c1463f6751`
+
+`SHA256(mmproj-Qwen3VL-32B-Instruct-F16.gguf) = 8617824839df91f84b4840ad5084dcf50a1403a435a1f4cfc4d8c84ce6cac2fc`
+
+```sh
+$ poetry run transai -m qwen3-vl-32b-instruct@Q8_0 --lms --seed 666 query "With few words, describe the image. Who can it be?" --images ~/py/transai/tests/data/images/100.jpg --free
+This is a portrait of Johann Sebastian Bach, the renowned German composer and musician of the Baroque era. He is depicted with his characteristic white
+wig, formal dark coat, and holding sheet music, reflecting his identity as a master of classical composition.
+
+$ poetry run transai -m qwen3-vl-32b-instruct@Q8_0 --no-lms --seed 666 query "With few words, describe the image. Who can it be?" --images ~/py/transai/tests/data/images/100.jpg
+This is a portrait of Johann Sebastian Bach, the renowned German composer and musician of the Baroque period. He is depicted with his characteristic white
+wig, formal black coat, and holding a sheet of music, reflecting his identity as a master of classical composition.
+```
+
+#### Tools Use
+
+Facts we can use to make queries that are hard to solve without tools and do not depend on disk or network:
+
+- $13791229 \times 14270111 = 196802368656419$
+
+- $13791229 \times 12469153 = 171964944459037$
+
+- $\operatorname{GCD}\left(196802368656419, 171964944459037\right) = 13791229$
+
+- $12357067 \times 10557757 \equiv 1 \pmod{11812343}$
+
+Armed with this we can have LMS/Llama queries for `qwen3-8b` model (the same as above):
+
+```sh
+$ poetry run transai -m qwen3-8b@Q8_0 --lms --seed 666 query "Compute the exact GCD of 196802368656419 and 171964944459037. Compute the exact modular inverse of 12357067 modulus 11812343." --tools transai.cli.query.GCD --tools transai.cli.query.ModInv --free
+The greatest common divisor (GCD) of 196802368656419 and 171964944459037 is **13791229**.
+
+The modular inverse of 12357067 modulo 11812343 is **10557757**, which satisfies $(12357067 \times 10557757) \bmod 11812343 = 1$.
+
+These results are verified using the Euclidean algorithm for GCD and the extended Euclidean algorithm for the modular inverse.
+
+$ poetry run transai -m qwen3-8b-gguf --no-lms --seed 666 query "Compute the exact GCD of 196802368656419 and 171964944459037. Compute the exact modular inverse of 12357067 modulus 11812343." --tools transai.cli.query.GCD --tools transai.cli.query.ModInv
+The greatest common divisor (GCD) of 196802368656419 and 171964944459037 is **13791229**.
+
+The modular inverse of 12357067 modulo 11812343 is **10557757**. This means $12357067 \times 10557757 \equiv 1 \pmod{11812343}$.
+```
 
 ## Project Design
 

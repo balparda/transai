@@ -195,6 +195,7 @@
     "noqa",
     "nosetests",
     "numpy",
+    "operatorname",
     "orjson",
     "panflute",
     "pathlib",

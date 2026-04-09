@@ -10,6 +10,7 @@ import pathlib
 import click
 import typer
 from transcrypto.cli import clibase
+from transcrypto.core import modmath
 
 from transai import transai
 from transai.core import ai, llama, lms
@@ -98,3 +99,37 @@ def Query(  # documentation is help/epilog/args # noqa: D103
     tools=tools,  # type: ignore[arg-type]
   )
   config.console.print(response)
+  config.console.print()
+
+
+def GCD(a: int, b: int) -> int:
+  """Greatest Common Divisor for `a` and `b`, integers ≥0.
+
+  Args:
+    a (int): integer a ≥ 0
+    b (int): integer b ≥ 0 (can't be both zero)
+
+  Returns:
+    gcd(a, b)
+
+  """
+  # these are used in the test queries, so we expose them in a way that can be called by name
+  # b/c the original can only be called by positional arguments
+  return modmath.GCD(a, b)
+
+
+def ModInv(x: int, m: int) -> int:
+  """Modular inverse of `x` mod `m`: a `y` such that (x * y) % m == 1 if GCD(x, m) == 1.
+
+  Args:
+    x (int): integer to invert
+    m (int): modulus, m ≥ 2
+
+  Returns:
+    positive integer `y` such that (x * y) % m == 1
+    this only exists if GCD(x, m) == 1, so to guarantee an inverse `m` must be prime
+
+  """
+  # these are used in the test queries, so we expose them in a way that can be called by name
+  # b/c the original can only be called by positional arguments
+  return modmath.ModInv(x, m)
