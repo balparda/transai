@@ -141,7 +141,7 @@ def MakeAIModelConfig(**overrides: object) -> AIModelConfig:
 
 
 class AIWorker(abc.ABC):
-  """Abstract base class for AI worker."""
+  """Abstract base class for AI worker. Inherit and implement, do not use directly."""
 
   def __init__(self, /, *, timeout: float | None = DEFAULT_TIMEOUT) -> None:
     """Initialize the worker.

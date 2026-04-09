@@ -20,7 +20,7 @@ class Error(ai.Error):
 
 
 class LMStudioWorker(ai.AIWorker):
-  """AI worker implementation using LMStudio."""
+  """AI worker implementation using LMStudio. Use as context manager."""
 
   def __init__(
     self, /, *, timeout: float | None = ai.DEFAULT_TIMEOUT, free_resources: bool = True
@@ -98,8 +98,10 @@ class LMStudioWorker(ai.AIWorker):
       logging.warning('AIModelConfig.model_path/clip_path are ignored by LMStudioWorker')
     if config['kv_cache'] is not None:
       logging.warning('AIModelConfig.kv_cache is ignored by LMStudioWorker')
-    if config['flash'] or config['gpu_layers'] != -1 or config['spec_tokens'] is not None:
+    if config['flash'] or config['gpu_layers'] != -1:
       logging.warning('AIModelConfig.flash/gpu_layers/spec_tokens are ignored by LMStudioWorker')
+    if config['spec_tokens'] is not None:
+      raise Error('AIModelConfig.spec_tokens is not supported by LMStudioWorker')
     if config['reasoning']:
       # TODO: check reasoning capabilities when lmstudio supports it in the future
       raise Error(f'AIModelConfig.reasoning is not supported by LMStudioWorker: {config!r}')

@@ -31,7 +31,7 @@ Since version 1.0.0 it is a PyPI package: <https://pypi.org/project/transai/>
     - [Vision models (images)](#vision-models-images)
     - [Tool use (function calling)](#tool-use-function-calling)
     - [Image utilities](#image-utilities)
-  - [AI Guide](#ai-guide)
+  - [Workable AI Models Guide](#workable-ai-models-guide)
     - [Vision Models](#vision-models)
     - [Blind Models](#blind-models)
   - [CLI Interface](#cli-interface)
@@ -198,12 +198,10 @@ with llama.LlamaWorker(pathlib.Path('~/.lmstudio/models/')) as worker:
 ### Querying a model (text)
 
 ```python
-response: str = worker.ModelCall(
-  model_id='qwen3-8b@Q8_0',
-  system_prompt='You are a helpful assistant.',
-  user_prompt='What is the capital of France?',
-  output_format=str,
-)
+with lms/llama.*Worker() as worker:  # open...
+  worker.LoadModel(...)              # load model...
+  response: str = worker.ModelCall(
+      'qwen3-8b@Q8_0', 'You are a helpful assistant.', 'What is the capital of France?', str)
 print(response)  # "The capital of France is Paris."
 ```
 
@@ -222,12 +220,14 @@ class CityInfo(pydantic.BaseModel):
   population: int = pydantic.Field(description='city population')
   districts: list[str] =  pydantic.Field(description='list of city district names')
 
-result: CityInfo = worker.ModelCall(
-  model_id='qwen3-8b@Q8_0',
-  system_prompt='Extract a city information, its country, population, and list of districts.',
-  user_prompt='Tell me about Paris, France.',
-  output_format=CityInfo,
-)
+with lms/llama.*Worker() as worker:  # open...
+  worker.LoadModel(...)              # load model...
+  result: CityInfo = worker.ModelCall(
+      'qwen3-8b@Q8_0',
+      'Extract a city information, its country, population, and list of districts.',
+      'Tell me about Paris, France.',
+      CityInfo,
+  )
 print(result.city)        # "Paris"
 print(result.population)  # 2161000
 ```
@@ -237,20 +237,27 @@ print(result.population)  # 2161000
 ```python
 import pathlib
 
-response: str = worker.ModelCall(
-  model_id='qwen3-vl-32b-instruct@Q8_0',
-  system_prompt='Describe what you see.',
-  user_prompt='What is in this image?',
-  output_format=str,
-  images=[pathlib.Path('photo.jpg')],  # or raw bytes, or file path string
-)
+with lms/llama.*Worker() as worker:  # open...
+  worker.LoadModel(...)              # load model...
+  response: str = worker.ModelCall(
+    'qwen3-vl-32b-instruct@Q8_0', 'Describe what you see.', 'What is in this image?', str,
+    images=[pathlib.Path('photo.jpg')],  # or raw bytes, or file path strings
+  )
+print(response)
 ```
 
 Images are automatically resized to fit within 1024px (longest edge) before being sent to the model.
 
 ### Tool use (function calling)
 
-Pass Python callables (or fully-qualified dotted names) as `tools`. The model may invoke them during the conversation and TransAI handles the execution round-trip automatically:
+Pass Python callables (or fully-qualified dotted names) as `tools`. The model may invoke them during the conversation and TransAI handles the execution round-trips automatically. Make sure the methods you want the LLM to call:
+
+- have ***good pydocs***
+- are ***typed***
+- can be ***called by name***, i.e., they accept calls like `Method(**args_dict)`
+- has ***sane exceptions***: if the method raises an exception the LLM will get the exception text back, and might adapt to the information there, so try to have good, sane, exceptions with relevant messages.
+
+All the information on the methods (pydocs, types, etc) is sent to the model. **Beware of parameter passing: it can go wrong.** Just as one example: some handlers/LLMs will handle arbitrary length integers well and feed them correctly to a method that takes integers, like `math.gcd`, while other handlers/LLMs might get stuck on sending very large integers as scientific notation, which won't parse correctly and even if they did the results would be incorrect, and the handler/LLM will get stuck on this behavior repeatedly retrying and getting the same error messages. *(These possible issues with parameters in calls are not something under the control of this library: you will have to experiment and see what works better or not.)*
 
 ```python
 def celsius_to_fahrenheit(celsius: float) -> float:
@@ -265,23 +272,20 @@ def celsius_to_fahrenheit(celsius: float) -> float:
   """
   return celsius * 9 / 5 + 32
 
-# tools must be a list of callables or strings; the model may call them zero or more times
-response: str = worker.ModelCall(
-  model_id='qwen3-8b@Q8_0',
-  system_prompt='You are a helpful assistant.',
-  user_prompt='What is 23°C in Fahrenheit? Also, what is the GCD of 48 and 36?',
-  output_format=str,
-  tools=[celsius_to_fahrenheit, 'math.gcd'],
-)
+with lms/llama.*Worker() as worker:  # open...
+  worker.LoadModel(...)              # load model...
+  # tools must be a list of callables or strings; the model may call them zero or more times
+  response: str = worker.ModelCall(
+    'qwen3-8b@Q8_0',
+    'You are a helpful assistant.',
+    'What is 23°C in Fahrenheit? Also, what is the GCD of 48 and 36?',
+    str,
+    tools=[celsius_to_fahrenheit, 'math.gcd'],
+  )
+print(response)
 ```
 
-Make sure the methods you want the LLM to call:
-
-- have ***good pydocs***;
-- are ***typed***;
-- can be ***called by name***, i.e., they accept calls like `Method(**args_dict)`.
-
-All the information (name, type, descriptions) are sent to the model.
+Because of the complexities involved it is very important to test your use cases very thoroughly. Remember that setting log levels to debug (`-vvv` on the CLI) will allow you to see the messages going to-and-fro the library and the LLMs.
 
 ### Image utilities
 
@@ -299,7 +303,7 @@ for frame_png in images.AnimationFrames(animated_gif_bytes):
   pass
 ```
 
-## AI Guide
+## Workable AI Models Guide
 
 Models suggestions as of April/2026. Just an opinion, not to be taken seriously. Do your own tests.
 
@@ -387,7 +391,9 @@ To control color see [Rich's markup conventions](https://rich.readthedocs.io/en/
 
 ### Test Queries
 
-For all the queries below, remember to add `-vvv` to debug. The queries should be reproducible as shown here, as long as you have the same model...
+For all the queries below, remember to add `-vv` or `-vvv` to see info/debug logs: it will allow you to see the messages going to-and-fro the library and the LLMs.
+
+The queries should be reproducible as shown here, as long as you have the same models installed... We give the hashes of the models used here and all the queries set the `--seed` for reproducibility.
 
 #### No Vision & No Tools
 

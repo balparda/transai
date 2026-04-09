@@ -94,7 +94,7 @@ class Error(ai.Error):
 
 
 class LlamaWorker(ai.AIWorker):
-  """AI worker implementation using llama.cpp (llama-cpp-python)."""
+  """AI worker implementation using llama.cpp (llama-cpp-python). Use as context manager."""
 
   def __init__(
     self,
@@ -177,12 +177,11 @@ class LlamaWorker(ai.AIWorker):
       raise Error(f'Vision requested but not loaded for model {config["model_id"]!r}')
     # speculative decoding
     draft_model: llama_speculative.LlamaPromptLookupDecoding | None = None
-    if config['spec_tokens'] is not None and config['spec_tokens'] > 0:
-      draft_model = llama_speculative.LlamaPromptLookupDecoding(
-        num_pred_tokens=config['spec_tokens']
-      )
+    spec_tokens: int = 0
+    if config['spec_tokens'] is not None and (spec_tokens := config['spec_tokens']) > 0:
+      draft_model = llama_speculative.LlamaPromptLookupDecoding(num_pred_tokens=spec_tokens)
     # load model
-    logging.info(f'Loading {gguf_path}')
+    logging.info(f'Loading {gguf_path}' + (f' + {spec_tokens} tokens' if draft_model else ''))  # noqa: G003
     with _SuppressNativeOutput(not self._verbose):
       llm: llama_cpp.Llama = llama_cpp.Llama(
         model_path=str(gguf_path),

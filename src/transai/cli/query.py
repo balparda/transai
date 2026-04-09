@@ -67,39 +67,43 @@ def Query(  # documentation is help/epilog/args # noqa: D103
     raise ai.Error('Non-LM Studio client library requires `models_root` to be set')
   if not free_resources and config.seed is not None:
     logging.warning(f'Seed {config.seed} + `--no-free`, but to apply seed we will `--free`')
-  worker: ai.AIWorker = (
+  # use the worker as a context manager so Close() is called explicitly before process exit,
+  # which ensures llama_cpp.Llama (and its Metal/GPU resources) are freed while the runtime
+  # is still in a valid state; without this, Metal cleanup during __cxa_finalize_ranges
+  # (C++ static destructors at exit) can trigger a ggml_metal_device_free assertion failure
+  with (
     lms.LMStudioWorker(
       timeout=config.timeout, free_resources=free_resources or config.seed is not None
     )
     if config.lms
     else llama.LlamaWorker(config.models_root, timeout=config.timeout, verbose=metal)  # type: ignore[arg-type]
-  )
-  model_config, _ = worker.LoadModel(
-    ai.MakeAIModelConfig(
-      model_id=config.model,
-      vision=bool(images),  # if there are images, we need vision support!
-      seed=config.seed,
-      context=config.context,
-      temperature=config.temperature,
-      gpu_ratio=config.gpu,
-      gpu_layers=config.gpu_layers,
-      use_mmap=config.use_mmap,
-      fp16=config.fp16,
-      flash=config.flash,
-      spec_tokens=config.spec_tokens,
-      kv_cache=config.kv_cache,
+  ) as ai_worker:
+    model_config, _ = ai_worker.LoadModel(
+      ai.MakeAIModelConfig(
+        model_id=config.model,
+        vision=bool(images),  # if there are images, we need vision support!
+        seed=config.seed,
+        context=config.context,
+        temperature=config.temperature,
+        gpu_ratio=config.gpu,
+        gpu_layers=config.gpu_layers,
+        use_mmap=config.use_mmap,
+        fp16=config.fp16,
+        flash=config.flash,
+        spec_tokens=config.spec_tokens,
+        kv_cache=config.kv_cache,
+      )
     )
-  )
-  response: str = worker.ModelCall(
-    model_config['model_id'],
-    system_prompt.strip(),
-    model_input.strip(),
-    str,
-    images=list(images) if images else None,
-    tools=tools,  # type: ignore[arg-type]
-  )
-  config.console.print(response)
-  config.console.print()
+    response: str = ai_worker.ModelCall(
+      model_config['model_id'],
+      system_prompt.strip(),
+      model_input.strip(),
+      str,
+      images=list(images) if images else None,
+      tools=tools,  # type: ignore[arg-type]
+    )
+    config.console.print(response)
+    config.console.print()
 
 
 def GCD(a: int, b: int) -> int:

@@ -54,6 +54,7 @@ def testQueryRaisesErrorWhenNoLMSAndNoRoot() -> None:
 def testQueryUsesLMStudioWorker() -> None:
   """Query command uses LMStudioWorker when --lms (the default)."""
   worker_mock = mock.MagicMock()
+  worker_mock.__enter__.return_value = worker_mock
   worker_mock.LoadModel.return_value = (ai.MakeAIModelConfig(), {})
   worker_mock.ModelCall.return_value = 'Paris'
   with mock.patch.object(lms, 'LMStudioWorker', return_value=worker_mock):
@@ -66,6 +67,7 @@ def testQueryUsesLMStudioWorker() -> None:
 def testQueryUsesLlamaWorkerWhenNoLMS(tmp_path: pathlib.Path) -> None:
   """Query command uses LlamaWorker when --no-lms and --root are provided."""
   worker_mock = mock.MagicMock()
+  worker_mock.__enter__.return_value = worker_mock
   worker_mock.LoadModel.return_value = (ai.MakeAIModelConfig(), {})
   worker_mock.ModelCall.return_value = 'Bonjour'
   with mock.patch.object(llama, 'LlamaWorker', return_value=worker_mock):
@@ -80,6 +82,7 @@ def testQueryUsesLlamaWorkerWhenNoLMS(tmp_path: pathlib.Path) -> None:
 def testQueryWarnsSeedWithNoFreeResources() -> None:
   """Query logs a warning when seed is set and free_resources=False (default, line 58)."""
   worker_mock = mock.MagicMock()
+  worker_mock.__enter__.return_value = worker_mock
   worker_mock.LoadModel.return_value = (ai.MakeAIModelConfig(), {})
   worker_mock.ModelCall.return_value = 'seeded answer'
   with mock.patch.object(lms, 'LMStudioWorker', return_value=worker_mock):
@@ -93,6 +96,7 @@ def testQueryWarnsSeedWithNoFreeResources() -> None:
 def testQueryWithToolsPassesToolsToModelCall() -> None:
   """Query --tools option passes tool names through to ModelCall."""
   worker_mock = mock.MagicMock()
+  worker_mock.__enter__.return_value = worker_mock
   worker_mock.LoadModel.return_value = (ai.MakeAIModelConfig(tooling=True), {})
   worker_mock.ModelCall.return_value = 'result with tools'
   with mock.patch.object(lms, 'LMStudioWorker', return_value=worker_mock):
@@ -108,6 +112,7 @@ def testQueryWithToolsPassesToolsToModelCall() -> None:
 def testQueryWithImagesAndTools() -> None:
   """Query supports providing both --images and --tools at the same time."""
   worker_mock = mock.MagicMock()
+  worker_mock.__enter__.return_value = worker_mock
   worker_mock.LoadModel.return_value = (ai.MakeAIModelConfig(vision=True, tooling=True), {})
   worker_mock.ModelCall.return_value = 'vision+tool answer'
   with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_img:
