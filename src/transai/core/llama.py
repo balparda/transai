@@ -628,7 +628,7 @@ def _ExecuteToolCalls(
         logging.debug(f'Tool {func_name!r} rejected keyword args, retrying positionally')
         tool_result = tool_map[func_name](*args.values())
     except Exception as err:  # noqa: BLE001 --- we are purposeful in catching all exceptions
-      logging.error(f'Error: {func_name!r} raised: {err}')  # noqa: TRY400 --- not log.exception!!
+      logging.error(f'Error: {func_name!r} raised: {err}')
       tool_result = err  # we will feed the exception info back to the model as the tool result
     logging.info(f'Tool {func_name}({args_repr}) -> {tool_result!r} (# {call_id})')
     messages.append(
