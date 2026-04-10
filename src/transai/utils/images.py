@@ -115,12 +115,12 @@ def AnimationFrames(
         err_msg = f'Error in animated frame {frame_count + 1}'
         if not frame_count:
           raise ai.Error(err_msg) from err  # this is the first image and shouldn't fail
-        logging.exception(err_msg)  # the other frames can be logged and ignored
+        logging.warning(err_msg)  # the other frames can be logged and ignored
   except OSError as err:
     err_msg = f'Animation error @{frame_count + 1}'
     if not frame_count:
       raise ai.Error(err_msg) from err  # don't tolerate first-frame errors
-    logging.exception(err_msg)  # but only log subsequent errors (in secondary frames)
+    logging.warning(err_msg)  # but only log subsequent errors (in secondary frames)
   # check we did indeed have more than one frame, otherwise this was not an animation!
   if frame_count <= 1:
     raise ai.Error(f'Image is not animated, expected multiple frames, got {frame_count}')

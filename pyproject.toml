@@ -198,6 +198,7 @@ ignore = [
 
   "TRY003",  # Avoid specifying long messages outside the exception class
   "TRY300",  # Consider moving this statement to an `else` block
+  "TRY400",  # Use `logging.exception` instead of `logging.error`
   "EM101",   # Exception must not use a string literal, assign to variable first
   "EM102",   # Exception must not use an f-string literal, assign to variable first
 

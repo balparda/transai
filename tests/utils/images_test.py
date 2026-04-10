@@ -320,7 +320,7 @@ def test_animation_frames_inner_oserror_later_frame_logged_and_skipped(
 
   with (
     mock.patch('transai.utils.images._ImageToScaledPNGBytes', side_effect=_side_effect),
-    caplog.at_level(logging.ERROR),
+    caplog.at_level(logging.WARNING),
   ):
     produced: list[bytes] = list(images.AnimationFrames(gif_bytes, decimation=False))
 
@@ -335,8 +335,8 @@ def test_animation_frames_outer_oserror_after_frames_logged(
   """OSError raised by the iterator itself (after 3 successful frames) must be logged.
 
   frame_count=2 when the error fires → outer `except OSError`, `if not frame_count:` False
-  branch → logging.exception, then `if frame_count <= 1:` False → logging.debug.
-  This is the only test that exercises line 117 (outer except logging.exception).
+  branch → logging.warning, then `if frame_count <= 1:` False → logging.debug.
+  This is the only test that exercises line 117 (outer except logging.warning).
   """
   frame_img = Image.new('RGB', (5, 5), color=(100, 100, 100))
 
@@ -353,7 +353,7 @@ def test_animation_frames_outer_oserror_after_frames_logged(
   with (
     mock.patch.object(Image, 'open', return_value=mock_anim),
     mock.patch.object(ImageSequence, 'Iterator', side_effect=_bad_iterator),
-    caplog.at_level(logging.ERROR),
+    caplog.at_level(logging.WARNING),
   ):
     produced: list[bytes] = list(images.AnimationFrames(b'fake', decimation=False))
 
