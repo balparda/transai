@@ -108,7 +108,7 @@ python = "^3.12"  # if version changes, remember to change README.md
 [tool.poetry.group.dev.dependencies]
 
 # basic, all projects should have
-ruff = "^0.15.10"
+ruff = "^0.15.11"
 mypy = "^1.20"
 pytest = "^9.0"
 pytest-cov = "^7.1"
@@ -120,6 +120,7 @@ typeguard = "^4.5"
 
 # project-specific dev-only
 huggingface-hub = "^1.10"  # download tiny GGUF test models from HF Hub
+types-tqdm = "^4.67"
 
 [tool.poetry.requires-plugins]
 poetry-plugin-export = "^1.10"

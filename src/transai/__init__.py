@@ -4,4 +4,4 @@
 
 __all__: list[str] = ['__author__', '__version__']
 __version__ = '1.2.0'  # also update pyproject.toml
-__author__ = 'Daniel Balparda <balparda@github.com>'
+__author__ = 'Daniel Balparda <balparda@github.com>, BellaKeri <BellaKeri@github.com>'

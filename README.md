@@ -74,7 +74,7 @@ Since version 1.0.0 it is a PyPI package: <https://pypi.org/project/transai/>
 
 ## License
 
-Copyright 2025 Daniel Balparda <balparda@github.com>
+Copyright 2026 Daniel Balparda <balparda@github.com> & BellaKeri <BellaKeri@github.com>
 
 Licensed under the **Apache License, Version 2.0** (the "License"); you may not use this file except in compliance with the License. You may obtain a [copy of the License here](http://www.apache.org/licenses/LICENSE-2.0).
 
