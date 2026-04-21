@@ -52,7 +52,7 @@ dependencies = [
   # development-only dependencies go in the [tool.poetry.group.dev.dependencies] section below
 
   "Pillow>=12.2",
-  "pydantic>=2.12",
+  "pydantic>=2.13.3",
   "tqdm>=4.67",
   "func-timeout>=4.3",
 
