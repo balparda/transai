@@ -119,7 +119,7 @@ pyinstrument = "^5.1"
 typeguard = "^4.5"
 
 # project-specific dev-only
-huggingface-hub = "^1.10"  # download tiny GGUF test models from HF Hub
+huggingface-hub = "^1.12"  # download tiny GGUF test models from HF Hub
 types-tqdm = "^4.67"
 
 [tool.poetry.requires-plugins]
