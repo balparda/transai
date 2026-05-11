@@ -35,7 +35,17 @@ This project follows a pragmatic versioning approach:
 
 ## 1.2.0 - 2026-04-11
 
-TODO: add everything since 1.1.0 but except 1.3.0
+- Added
+  - `LlamaWorker` now explicitly drains all vision handler `ExitStack`s (`_exit_stack.close()`) inside `Close()` before calling the parent `Close()`, ensuring correct Metal/GPU resource teardown ordering on macOS.
+  - New tests for `LlamaWorker.Close()` Metal resource freeing edge cases.
+
+- Changed
+  - Updated to new `transcrypto` version; simplified and refactored `query.py` CLI command and `ai.py`/`llama.py`/`lms.py` internals using new transcrypto helpers.
+  - Dependency version bumps (`pydantic-core` 2.45.0, other minor updates).
+  - Various documentation and README improvements.
+
+- Fixed
+  - `ggml_metal_device_free` assertion crash on macOS at process exit when using vision models with the llama.cpp backend: caused by Metal/GPU resources being freed in the wrong order. Fixed by draining vision-handler ExitStacks before the underlying `llama_cpp.Llama` object is released.
 
 ## 1.1.0 - 2026-04-08
 

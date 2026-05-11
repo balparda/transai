@@ -15,6 +15,7 @@ import lmstudio
 import pydantic
 import pytest
 from lmstudio import _sdk_models  # noqa: PLC2701
+from transcrypto.utils import base
 
 from transai.core import ai, lms
 
@@ -403,7 +404,7 @@ def testLMSCallReturnsStringContent() -> None:
   with mock.patch('lmstudio.Chat') as chat_cls:
     chat_mock = mock.MagicMock()
     chat_cls.return_value = chat_mock
-    result: str = worker._Call(loaded, 'system', 'user question', str, 1000)
+    result, _ = worker._Call(loaded, 'system', 'user question', str, 1000)
   assert result == 'hello world'
   chat_mock.add_user_message.assert_called_once_with('user question', images=None)
 
@@ -430,7 +431,7 @@ def testLMSCallReturnsParsedPydanticModel() -> None:
   )
   with mock.patch('lmstudio.Chat') as chat_cls:
     chat_cls.return_value = mock.MagicMock()
-    result = worker._Call(loaded, 'system', 'user', _MyOutput, 1000)
+    result, _ = worker._Call(loaded, 'system', 'user', _MyOutput, 1000)
   assert isinstance(result, _MyOutput)
   assert result.category == 'dog'
   assert result.confidence == pytest.approx(0.95)  # pyright: ignore[reportUnknownMemberType]
@@ -497,7 +498,7 @@ def testLMSCallWithImageBytes() -> None:
   ):
     chat_mock = mock.MagicMock()
     chat_cls.return_value = chat_mock
-    result: str = worker._Call(loaded, 'system', 'describe', str, 1000, images=[fake_bytes])
+    result, _ = worker._Call(loaded, 'system', 'describe', str, 1000, images=[fake_bytes])
   assert result == 'vision result'
   prepare_mock.assert_called_once_with(fake_bytes)
   _call_args, call_kwargs = chat_mock.add_user_message.call_args
@@ -526,7 +527,7 @@ def testLMSCallWithImagePaths() -> None:
   ):
     chat_mock = mock.MagicMock()
     chat_cls.return_value = chat_mock
-    result: str = worker._Call(loaded, 'system', 'describe', str, 1000, images=[img_path])
+    result, _ = worker._Call(loaded, 'system', 'describe', str, 1000, images=[img_path])
   assert result == 'path vision result'
   prepare_mock.assert_called_once_with(img_path)
 
@@ -548,10 +549,47 @@ def testLMSCallNoImages() -> None:
   with mock.patch('lmstudio.Chat') as chat_cls:
     chat_mock = mock.MagicMock()
     chat_cls.return_value = chat_mock
-    result: str = worker._Call(loaded, 'system', 'user', str, 1000)
+    result, _ = worker._Call(loaded, 'system', 'user', str, 1000)
   assert result == 'text only'
   _args, kwargs = chat_mock.add_user_message.call_args
   assert kwargs['images'] is None
+
+
+# ---------------------------------------------------------------------------
+# LMStudioWorker._Call — chat history
+# ---------------------------------------------------------------------------
+
+
+def testLMSCallWithChatHistoryUsesFromHistory() -> None:
+  """_Call uses Chat.from_history when chat_history is provided, not Chat(system_prompt)."""
+  worker, _client = _MakeLMSWorker()
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(seed=5000)
+  lm_model_mock = mock.MagicMock(spec=lmstudio.LLM)
+  pred_result: mock.MagicMock = _MakePredictionResult('continued reply')
+  lm_model_mock.respond.return_value = pred_result
+  loaded = ai.LoadedModel(
+    model_id=config['model_id'],
+    seed_state=bytes(32),
+    config=config,
+    metadata={},
+    model=lm_model_mock,
+  )
+  history_in: base.JSONDict = {
+    'messages': [
+      {'role': 'system', 'content': 'You are helpful.'},
+      {'role': 'user', 'content': 'Hello'},
+      {'role': 'assistant', 'content': 'Hi!'},
+    ]
+  }
+  fake_chat = mock.MagicMock()
+  with mock.patch('lmstudio.Chat') as chat_cls:
+    chat_cls.from_history.return_value = fake_chat
+    result, _ = worker._Call(
+      loaded, 'ignored_system', 'follow-up', str, 1000, chat_history=history_in
+    )
+  assert result == 'continued reply'
+  chat_cls.from_history.assert_called_once()  # from_history used, not Chat()
+  chat_cls.assert_not_called()  # Chat() constructor was NOT called
 
 
 # ---------------------------------------------------------------------------
@@ -576,7 +614,7 @@ def testLMSWorkerLoadModelAndModelCall() -> None:
   ):
     chat_cls.return_value = mock.MagicMock()
     worker.LoadModel(config)
-    result: str = worker.ModelCall('my-lms-model', 'sys', 'user', str)
+    result, _ = worker.ModelCall('my-lms-model', 'sys', 'user', str)
   assert result == 'e2e lms result'
 
 
@@ -649,8 +687,8 @@ def testLMSCallWithToolsCallsAct() -> None:
 
   with mock.patch('lmstudio.Chat') as chat_cls:
     chat_cls.return_value = mock.MagicMock()
-    with mock.patch('transai.core.lms._CallLMSAct', return_value='tool response') as act_mock:
-      result: str = worker._Call(loaded, 'sys', 'user', str, 1000, tools=[_my_tool])
+    with mock.patch('transai.core.lms._CallLMSAct', return_value=('tool response', [])) as act_mock:
+      result, _ = worker._Call(loaded, 'sys', 'user', str, 1000, tools=[_my_tool])
   assert result == 'tool response'
   act_mock.assert_called_once()
 
@@ -725,7 +763,7 @@ def testCallLMSActPlainTextContent() -> None:
     return _MakeActResult()
 
   llm_mock.act.side_effect = _fake_act
-  result: str = lms._CallLMSAct(llm_mock, chat_mock, {}, [])  # type: ignore[arg-type,call-arg]
+  result, _ = lms._CallLMSAct(llm_mock, chat_mock, {}, [])  # type: ignore[arg-type,call-arg]
   assert result == 'hello from model'
 
 
@@ -746,7 +784,7 @@ def testCallLMSActStripsThinkTags() -> None:
     return _MakeActResult()
 
   llm_mock.act.side_effect = _fake_act
-  result: str = lms._CallLMSAct(llm_mock, chat_mock, {}, [])  # type: ignore[arg-type,call-arg]
+  result, _ = lms._CallLMSAct(llm_mock, chat_mock, {}, [])  # type: ignore[arg-type,call-arg]
   assert result == 'final answer'
 
 
@@ -767,7 +805,7 @@ def testCallLMSActEmptyTextAfterThinkStripNotAdded() -> None:
     return _MakeActResult()
 
   llm_mock.act.side_effect = _fake_act
-  result: str = lms._CallLMSAct(llm_mock, chat_mock, {}, [])  # type: ignore[arg-type,call-arg]
+  result, _ = lms._CallLMSAct(llm_mock, chat_mock, {}, [])  # type: ignore[arg-type,call-arg]
   assert not result  # no content accumulated
 
 
@@ -820,7 +858,7 @@ def testCallLMSActToolCallRequestAndResult() -> None:
     return _MakeActResult(rounds=2)
 
   llm_mock.act.side_effect = _fake_act
-  result: str = lms._CallLMSAct(llm_mock, chat_mock, {}, [])  # type: ignore[arg-type,call-arg]
+  result, _ = lms._CallLMSAct(llm_mock, chat_mock, {}, [])  # type: ignore[arg-type,call-arg]
   assert result == 'the answer is 10'
 
 

@@ -52,12 +52,12 @@ dependencies = [
   # development-only dependencies go in the [tool.poetry.group.dev.dependencies] section below
 
   "Pillow>=12.2",
-  "pydantic>=2.12",
+  "pydantic>=2.13",
   "tqdm>=4.67",
   "func-timeout>=4.3",
 
   # the supported backends
-  "llama-cpp-python>=0.3.20",
+  "llama-cpp-python>=0.3.23",
   "lmstudio>=1.5.0",
 
 ]
@@ -108,7 +108,7 @@ python = "^3.12"  # if version changes, remember to change README.md
 [tool.poetry.group.dev.dependencies]
 
 # basic, all projects should have
-ruff = "^0.15.11"
+ruff = "^0.15.12"
 mypy = "^1.20"
 pytest = "^9.0"
 pytest-cov = "^7.1"
@@ -119,7 +119,7 @@ pyinstrument = "^5.1"
 typeguard = "^4.5"
 
 # project-specific dev-only
-huggingface-hub = "^1.10"  # download tiny GGUF test models from HF Hub
+huggingface-hub = "^1.14"  # download tiny GGUF test models from HF Hub
 types-tqdm = "^4.67"
 
 [tool.poetry.requires-plugins]

@@ -348,11 +348,14 @@ def _ExtractModelInfo(model: lmstudio.LLM, config: ai.AIModelConfig) -> ai.Loade
       'auto-tagging: you should select a vision model with at least 32k context length'
     )
   new_config: ai.AIModelConfig = config.copy()
-  new_config.update({
-    'vision': model_info.vision,
-    'tooling': model_info.trained_for_tool_use,
-    'context': n_ctx,
-  })
+  new_config.update(
+    # these are the actual config values used for loading, which may differ from the input config
+    {
+      'vision': model_info.vision,
+      'tooling': model_info.trained_for_tool_use,
+      'context': n_ctx,
+    }
+  )
   if not new_config['seed'] or new_config['seed'] <= 1:  # for safety, but should never happen
     raise Error('Loaded LMStudio model config must have a seed')
   return ai.LoadedModel(

@@ -231,13 +231,16 @@ class LlamaWorker(ai.AIWorker):
     has_reasoning: bool = any(x in md_text for x in _REASONING_KEYWORDS)
     # finalize config and metadata, store and return
     new_config: ai.AIModelConfig = config.copy()
-    new_config.update({
-      'model_path': gguf_path,
-      'clip_path': clip_path,
-      'vision': is_vision,
-      'tooling': has_tooling,
-      'reasoning': has_reasoning,
-    })
+    new_config.update(
+      # these are the actual config values used for loading, which may differ from the input config
+      {
+        'model_path': gguf_path,
+        'clip_path': clip_path,
+        'vision': is_vision,
+        'tooling': has_tooling,
+        'reasoning': has_reasoning,
+      }
+    )
     if not new_config['seed'] or new_config['seed'] <= 1:  # for safety, but should never happen
       raise Error('Loaded llama.cpp model config must have a seed')
     return ai.LoadedModel(
@@ -311,10 +314,13 @@ class LlamaWorker(ai.AIWorker):
           if isinstance(img, (str, pathlib.Path))
           else img
         )
-        parts.append({
-          'type': 'image_url',
-          'image_url': {'url': _ImageToDataURI(img_bytes, 'image/png')},
-        })
+        parts.append(
+          # llama.cpp vision handlers expect the image content as a data URI in a message part
+          {
+            'type': 'image_url',
+            'image_url': {'url': _ImageToDataURI(img_bytes, 'image/png')},
+          }
+        )
       # add the parts (text + images) as a single user message with mixed content
       messages.append({'role': 'user', 'content': parts})
     else:
@@ -558,11 +564,14 @@ def _CallLlamaAct(
       accumulated.append(content)
     if not tool_calls:
       break  # no more tool calls, we're done!
-    messages.append({
-      'role': 'assistant',
-      'content': content or '',
-      'tool_calls': tool_calls,
-    })
+    messages.append(
+      # record the assistant message with the tool calls for context, even if content is empty
+      {
+        'role': 'assistant',
+        'content': content or '',
+        'tool_calls': tool_calls,
+      }
+    )
     _ExecuteToolCalls(tool_calls, tool_map, messages)  # execute calls, append results
   # ended back-and-forth between model and tools; return accumulated content
   return '\n'.join(accumulated)
@@ -650,12 +659,15 @@ def _ExecuteToolCalls(
       logging.error(f'Error: {func_name!r} raised: {err}')
       tool_result = err  # we will feed the exception info back to the model as the tool result
     logging.info(f'Tool {func_name}({args_repr}) -> {tool_result!r} (# {call_id})')
-    messages.append({
-      'role': 'tool',
-      'tool_call_id': call_id,
-      'name': func_name,
-      'content': repr(tool_result),
-    })
+    messages.append(
+      # record the tool result in the conversation history for context in future rounds
+      {
+        'role': 'tool',
+        'tool_call_id': call_id,
+        'name': func_name,
+        'content': repr(tool_result),
+      }
+    )
 
 
 def _ExtractContent(result: llama_types.CreateChatCompletionResponse) -> str:

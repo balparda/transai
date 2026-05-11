@@ -539,7 +539,7 @@ def testModelCallPassesImagesThrough() -> None:
   w._loaded_models[ai.DEFAULT_TEXT_MODEL] = loaded
   images: list[ai.AIImageInput] = [b'\x89PNG']
   # patch _Call to capture invocation
-  with mock.patch.object(w, '_Call', return_value='img-result') as call_mock:
+  with mock.patch.object(w, '_Call', return_value=('img-result', {})) as call_mock:
     w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str, images=images)
   call_mock.assert_called_once()
   _, kwargs = call_mock.call_args
@@ -557,8 +557,8 @@ def testModelCallPassesMixedImageTypesThrough() -> None:
     pathlib.Path('/some/image.png'),  # pathlib.Path
     '/another/image.jpg',  # str path
   ]
-  with mock.patch.object(w, '_Call', return_value='mixed-result') as call_mock:
-    result: str = w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str, images=mixed_images)
+  with mock.patch.object(w, '_Call', return_value=('mixed-result', {})) as call_mock:
+    result, _ = w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str, images=mixed_images)
   assert result == 'mixed-result'
   call_mock.assert_called_once()
   _, kwargs = call_mock.call_args
@@ -631,8 +631,8 @@ def testModelCallPassesToolsThroughToCall() -> None:
     model=mock.MagicMock(spec=llama_cpp.Llama),
   )
   w._loaded_models[ai.DEFAULT_TEXT_MODEL] = loaded
-  with mock.patch.object(w, '_Call', return_value='tool result') as call_mock:
-    result: str = w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str, tools=[_my_tool])
+  with mock.patch.object(w, '_Call', return_value=('tool result', {})) as call_mock:
+    result, _ = w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str, tools=[_my_tool])
   assert result == 'tool result'
   call_mock.assert_called_once()
   _, kwargs = call_mock.call_args

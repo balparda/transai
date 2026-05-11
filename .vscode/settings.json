@@ -129,6 +129,7 @@
     "dataclass",
     "davidanson",
     "debugpy",
+    "deepcopy",
     "deepseek",
     "diskcache",
     "distlib",

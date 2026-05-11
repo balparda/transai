@@ -30,6 +30,7 @@ Since version 1.0.0 it is a PyPI package: <https://pypi.org/project/transai/>
     - [Querying a model (structured JSON)](#querying-a-model-structured-json)
     - [Vision models (images)](#vision-models-images)
     - [Tool use (function calling)](#tool-use-function-calling)
+    - [Multi-turn conversations (chat history)](#multi-turn-conversations-chat-history)
     - [Image utilities](#image-utilities)
   - [Workable AI Models Guide](#workable-ai-models-guide)
     - [Vision Models](#vision-models)
@@ -202,11 +203,13 @@ with llama.LlamaWorker(pathlib.Path('~/.lmstudio/models/')) as worker:
 
 ### Querying a model (text)
 
+`ModelCall()` returns a tuple `(result, chat_history_dict)` — the second element is the chat history as a JSON-serializable dict that can be fed back in follow-up calls.
+
 ```python
 with lms/llama.*Worker() as worker:  # open...
   worker.LoadModel(...)              # load model...
-  response: str = worker.ModelCall(
-      'qwen3-8b@Q8_0', 'You are a helpful assistant.', 'What is the capital of France?', str)
+  response, _history = worker.ModelCall(
+      'qwen3-8b@q8_0', 'You are a helpful assistant.', 'What is the capital of France?', str)
 print(response)  # "The capital of France is Paris."
 ```
 
@@ -227,7 +230,8 @@ class CityInfo(pydantic.BaseModel):
 
 with lms/llama.*Worker() as worker:  # open...
   worker.LoadModel(...)              # load model...
-  result: CityInfo = worker.ModelCall(
+  result: CityInfo
+  result, _history = worker.ModelCall(
       'qwen3-8b@q8_0',
       'Extract a city information, its country, population, and list of districts.',
       'Tell me about Paris, France.',
@@ -244,7 +248,7 @@ import pathlib
 
 with lms/llama.*Worker() as worker:  # open...
   worker.LoadModel(...)              # load model...
-  response: str = worker.ModelCall(
+  response, _history = worker.ModelCall(
     'qwen3-vl-32b-instruct@q8_0', 'Describe what you see.', 'What is in this image?', str,
     images=[pathlib.Path('photo.jpg')],  # or raw bytes, or file path strings
   )
@@ -280,7 +284,7 @@ def celsius_to_fahrenheit(celsius: float) -> float:
 with lms/llama.*Worker() as worker:  # open...
   worker.LoadModel(...)              # load model...
   # tools must be a list of callables or strings; the model may call them zero or more times
-  response: str = worker.ModelCall(
+  response, _history = worker.ModelCall(
     'qwen3-8b@q8_0',
     'You are a helpful assistant.',
     'What is 23°C in Fahrenheit? Also, what is the GCD of 48 and 36?',
@@ -291,6 +295,39 @@ print(response)
 ```
 
 Because of the complexities involved it is very important to test your use cases very thoroughly. Remember that setting log levels to debug (`-vvv` on the CLI) will allow you to see the messages going to-and-fro the library and the LLMs.
+
+### Multi-turn conversations (chat history)
+
+`ModelCall()` always returns `(result, chat_history_dict)`. Pass the returned dict back as `chat_history` to continue the conversation — the system prompt is ignored in subsequent calls, but the user prompt and any images are appended to the existing history.
+
+```python
+with lms/llama.*Worker() as worker:  # open...
+  worker.LoadModel(...)              # load model...
+  # first turn: start conversation
+  reply1, history = worker.ModelCall(
+    'qwen3-8b@q8_0',
+    'You are a helpful cooking assistant.',
+    'Give me a simple pasta recipe.',
+    str,
+  )
+  print(reply1)
+  # second turn: continue using the returned history
+  reply2, history = worker.ModelCall(
+    'qwen3-8b@q8_0',
+    '',  # system prompt ignored when chat_history is provided
+    'Can you make it vegetarian?',
+    str,
+    chat_history=history,  # pass the previous turn's history back in
+  )
+  print(reply2)
+  # third turn: continue again...
+  reply3, history = worker.ModelCall(
+    'qwen3-8b@q8_0', '', 'How long does it take to make?', str, chat_history=history
+  )
+  print(reply3)
+```
+
+**Note:** the `chat_history` dict is mutable — passing it back in will extend it in-place for the llama.cpp backend. For safety, make a `copy.deepcopy()` of the dict if you want to branch the conversation.
 
 ### Image utilities
 

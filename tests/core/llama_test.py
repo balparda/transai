@@ -580,7 +580,7 @@ def testLlamaCallReturnsStringForStrFormat(tmp_path: pathlib.Path) -> None:
   w = llama.LlamaWorker(tmp_path)
   w._verbose = True  # Skip output suppression for simpler mocking
   with typeguard.suppress_type_checks():
-    result: str = w._Call(loaded, 'system', 'user question', str, 1000)
+    result, _ = w._Call(loaded, 'system', 'user question', str, 1000)
   assert result == 'answer text'
   llm_mock.create_chat_completion.assert_called_once()
 
@@ -601,7 +601,7 @@ def testLlamaCallReturnsParsedPydanticModel(tmp_path: pathlib.Path) -> None:
   w = llama.LlamaWorker(tmp_path)
   w._verbose = True
   with typeguard.suppress_type_checks():
-    result: _MyOutput = w._Call(loaded, 'system', 'user', _MyOutput, 1000)
+    result, _ = w._Call(loaded, 'system', 'user', _MyOutput, 1000)
   assert isinstance(result, _MyOutput)
   assert result.label == 'cat'
   assert result.score == pytest.approx(0.9)  # pyright: ignore[reportUnknownMemberType]
@@ -655,12 +655,12 @@ def testLlamaCallWithImageBytes(tmp_path: pathlib.Path) -> None:
     mock.patch('transai.core.llama.ai_images.ResizeImageForVision', return_value=fake_png),
     typeguard.suppress_type_checks(),
   ):
-    result: str = w._Call(loaded, 'system', 'describe image', str, 1000, images=[fake_png])
+    result, _ = w._Call(loaded, 'system', 'describe image', str, 1000, images=[fake_png])
   assert result == 'has cat'
   call_args = llm_mock.create_chat_completion.call_args
   messages: list[dict[str, Any]] = call_args[1]['messages']
-  # last message should be user message with content list
-  user_msg: dict[str, Any] = messages[-1]
+  # second-to-last is user message with content list (last is the appended assistant response)
+  user_msg: dict[str, Any] = messages[-2]
   assert user_msg['role'] == 'user'
   assert isinstance(user_msg['content'], list)
   assert any(part.get('type') == 'image_url' for part in user_msg['content'])  # pyright: ignore
@@ -683,7 +683,7 @@ def testLlamaCallWithImagePath(tmp_path: pathlib.Path) -> None:
     mock.patch('transai.core.llama.ai_images.ResizeImageForVision', return_value=fake_bytes),
     typeguard.suppress_type_checks(),
   ):
-    result: str = w._Call(loaded, 'sys', 'describe', str, 1000, images=[img_file])
+    result, _ = w._Call(loaded, 'sys', 'describe', str, 1000, images=[img_file])
   assert result == 'path result'
 
 
@@ -716,8 +716,41 @@ def testLlamaCallSuppressesOutputWhenNotVerbose(tmp_path: pathlib.Path) -> None:
   # verbose=False (default) → suppress=True (_SuppressNativeOutput redirects fds)
   assert w._verbose is False
   with typeguard.suppress_type_checks():
-    result: str = w._Call(loaded, 'system', 'user', str, 1000)
+    result, _ = w._Call(loaded, 'system', 'user', str, 1000)
   assert result == 'quiet'
+
+
+# ---------------------------------------------------------------------------
+# LlamaWorker._Call — chat history
+# ---------------------------------------------------------------------------
+
+
+def testLlamaCallWithChatHistoryUsesExistingMessages(tmp_path: pathlib.Path) -> None:
+  """_Call uses messages from chat_history when provided, ignoring system_prompt."""
+  config: ai.AIModelConfig = ai.MakeAIModelConfig(vision=False, seed=5000)
+  llm_mock = mock.MagicMock(spec=llama_cpp.Llama)
+  llm_mock.create_chat_completion.return_value = _MakeResponse('follow-up reply')
+  loaded = ai.LoadedModel(
+    model_id=config['model_id'], seed_state=bytes(32), config=config, metadata={}, model=llm_mock
+  )
+  existing_messages: base.JSONValue = [
+    {'role': 'system', 'content': 'You are helpful.'},
+    {'role': 'user', 'content': 'Hello'},
+    {'role': 'assistant', 'content': 'Hi!'},
+  ]
+  history_in: base.JSONDict = {'messages': existing_messages}
+  w = llama.LlamaWorker(tmp_path)
+  w._verbose = True
+  with typeguard.suppress_type_checks():
+    result, history_out = w._Call(
+      loaded, 'ignored_system', 'what next?', str, 1000, chat_history=history_in
+    )
+  assert result == 'follow-up reply'
+  # returned history is the same dict passed in (truthy path of `chat_history or ...`)
+  assert history_out is history_in
+  # user and assistant messages were appended in-place to the existing messages list
+  assert existing_messages[-2] == {'role': 'user', 'content': 'what next?'}  # type: ignore[index]
+  assert existing_messages[-1] == {'role': 'assistant', 'content': 'follow-up reply'}  # type: ignore[index]
 
 
 # ---------------------------------------------------------------------------
@@ -758,7 +791,7 @@ def testLlamaWorkerLoadModelAndModelCall(tmp_path: pathlib.Path) -> None:
     typeguard.suppress_type_checks(),
   ):
     w.LoadModel(config)
-    result: str = w.ModelCall('mymodel', 'system', 'user', str)
+    result, _ = w.ModelCall('mymodel', 'system', 'user', str)
   assert result == 'e2e result'
 
 
@@ -851,7 +884,7 @@ def testLlamaCallWithToolsCallsAct(tmp_path: pathlib.Path) -> None:
     fake_tool.to_dict.return_value = {'name': '_my_tool'}
     parse_mock.return_value = (mock.MagicMock(tools=[fake_tool]),)
     with typeguard.suppress_type_checks():
-      result: str = w._Call(loaded, 'sys', 'user', str, 1000, tools=[_my_tool])
+      result, _ = w._Call(loaded, 'sys', 'user', str, 1000, tools=[_my_tool])
   assert result == 'tool answer'
   act_mock.assert_called_once()
 

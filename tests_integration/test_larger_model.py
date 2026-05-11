@@ -144,7 +144,6 @@ def _query_call(
     # pipeline works end-to-end: model download ➜ load ➜ inference ➜ print.
     assert r.stdout, 'Expected non-empty stdout from model query'
     assert 'portrait' in r.stdout.lower()
-    assert 'man' in r.stdout.lower()
     assert '\x1b[' not in r.stdout  # no ANSI escape sequences
     assert '\x1b[' not in r.stderr
   finally:

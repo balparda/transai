@@ -55,7 +55,7 @@ def testQueryUsesLMStudioWorker() -> None:
   worker_mock = mock.MagicMock()
   worker_mock.__enter__.return_value = worker_mock
   worker_mock.LoadModel.return_value = (ai.MakeAIModelConfig(), {})
-  worker_mock.ModelCall.return_value = 'Paris'
+  worker_mock.ModelCall.return_value = ('Paris', {})
   with mock.patch.object(lms, 'LMStudioWorker', return_value=worker_mock):
     result: testing.Result = transai_test.CallCLI(['query', 'What is the capital of France?'])
   assert result.exit_code == 0, result.output
@@ -68,10 +68,17 @@ def testQueryUsesLlamaWorkerWhenNoLMS(tmp_path: pathlib.Path) -> None:
   worker_mock = mock.MagicMock()
   worker_mock.__enter__.return_value = worker_mock
   worker_mock.LoadModel.return_value = (ai.MakeAIModelConfig(), {})
-  worker_mock.ModelCall.return_value = 'Bonjour'
+  worker_mock.ModelCall.return_value = ('Bonjour', {})
   with mock.patch.object(llama, 'LlamaWorker', return_value=worker_mock):
     result: testing.Result = transai_test.CallCLI(
-      ['--no-lms', '--root', str(tmp_path), 'query', 'hi']
+      # arbitrary query, with --no-lms and --root to trigger LlamaWorker path
+      [
+        '--no-lms',
+        '--root',
+        str(tmp_path),
+        'query',
+        'hi',
+      ]
     )
   assert result.exit_code == 0, result.output
   worker_mock.LoadModel.assert_called_once()
@@ -83,7 +90,7 @@ def testQueryWarnsSeedWithNoFreeResources() -> None:
   worker_mock = mock.MagicMock()
   worker_mock.__enter__.return_value = worker_mock
   worker_mock.LoadModel.return_value = (ai.MakeAIModelConfig(), {})
-  worker_mock.ModelCall.return_value = 'seeded answer'
+  worker_mock.ModelCall.return_value = ('seeded answer', {})
   with mock.patch.object(lms, 'LMStudioWorker', return_value=worker_mock):
     # --seed 5000 sets config.seed=5000; free_resources defaults to False → warning fires
     result: testing.Result = transai_test.CallCLI(['--seed', '5000', 'query', 'hello'])
@@ -97,10 +104,18 @@ def testQueryWithToolsPassesToolsToModelCall() -> None:
   worker_mock = mock.MagicMock()
   worker_mock.__enter__.return_value = worker_mock
   worker_mock.LoadModel.return_value = (ai.MakeAIModelConfig(tooling=True), {})
-  worker_mock.ModelCall.return_value = 'result with tools'
+  worker_mock.ModelCall.return_value = ('result with tools', {})
   with mock.patch.object(lms, 'LMStudioWorker', return_value=worker_mock):
     result: testing.Result = transai_test.CallCLI(
-      ['query', '--tools', 'math.gcd', '--tools', 'os.getcwd', 'what time is it?']
+      # query with two tools specified; we just want to verify these are passed to ModelCall kwargs
+      [
+        'query',
+        '--tools',
+        'math.gcd',
+        '--tools',
+        'os.getcwd',
+        'what time is it?',
+      ]
     )
   assert result.exit_code == 0, result.output
   worker_mock.ModelCall.assert_called_once()
@@ -113,14 +128,22 @@ def testQueryWithImagesAndTools() -> None:
   worker_mock = mock.MagicMock()
   worker_mock.__enter__.return_value = worker_mock
   worker_mock.LoadModel.return_value = (ai.MakeAIModelConfig(vision=True, tooling=True), {})
-  worker_mock.ModelCall.return_value = 'vision+tool answer'
+  worker_mock.ModelCall.return_value = ('vision+tool answer', {})
   with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_img:
     tmp_img_path = pathlib.Path(tmp_img.name)
     tmp_img.write(b'\x89PNG\r\n\x1a\n' + b'\x00' * 20)
   try:
     with mock.patch.object(lms, 'LMStudioWorker', return_value=worker_mock):
       result: testing.Result = transai_test.CallCLI(
-        ['query', '--images', str(tmp_img_path), '--tools', 'math.gcd', 'describe this']
+        # test that both --images and --tools can be provided together
+        [
+          'query',
+          '--images',
+          str(tmp_img_path),
+          '--tools',
+          'math.gcd',
+          'describe this',
+        ]
       )
     assert result.exit_code == 0, result.output
     worker_mock.ModelCall.assert_called_once()
