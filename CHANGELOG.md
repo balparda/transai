@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 - [Changelog](#changelog)
   - [V.V.V - YYYY-MM-DD - Placeholder](#vvv---yyyy-mm-dd---placeholder)
+  - [1.3.0 - 2026-05-11](#130---2026-05-11)
+  - [1.2.0 - 2026-04-11](#120---2026-04-11)
   - [1.1.0 - 2026-04-08](#110---2026-04-08)
   - [1.0.0 - 2026-04-05](#100---2026-04-05)
 
@@ -25,6 +27,15 @@ This project follows a pragmatic versioning approach:
 
 - Fixed
   - Placeholder for future changes.
+
+## 1.3.0 - 2026-05-11
+
+- Added
+  - Now `ModelCall()` will return the chat history as JSON and accept it back, both for images and tools calls and so can maintain an ongoing stateful chat.
+
+## 1.2.0 - 2026-04-11
+
+TODO: add everything since 1.1.0 but except 1.3.0
 
 ## 1.1.0 - 2026-04-08
 

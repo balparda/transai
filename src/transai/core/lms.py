@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2026 Daniel Balparda <balparda@github.com>
+# SPDX-FileCopyrightText: Copyright 2026 <balparda@github.com> & <BellaKeri@github.com>
 # SPDX-License-Identifier: Apache-2.0
 """LM Studio (LMS) AI library."""
 
@@ -9,6 +9,7 @@ from typing import cast
 
 import lmstudio
 import pydantic
+from lmstudio import _sdk_models
 from transcrypto.core import hashes
 from transcrypto.utils import base
 
@@ -155,7 +156,8 @@ class LMStudioWorker(ai.AIWorker):
     *,
     images: list[ai.AIImageInput] | None = None,
     tools: list[ai.AnyCallable] | None = None,
-  ) -> T:
+    chat_history: base.JSONDict | None = None,
+  ) -> tuple[T, base.JSONDict]:
     """Make a call to the model.
 
     Args:
@@ -170,9 +172,16 @@ class LMStudioWorker(ai.AIWorker):
       tools (default=None): optional list of tools (methods) to use during the call;
           only supported if the model has tool capability; mandates str `output_format`;
           also make sure the methods are all typed and have proper docstrings for best results
+      chat_history (default=None): optional chat history to provide as context for the call;
+          should be a JSON dict with the same format as the one returned by this method;
+          if not given both `system_prompt` and `user_prompt` will be used as the initial messages;
+          BEWARE, if given, `system_prompt` will be ignored, but `user_prompt` and `images` will
+          be added to the chat before calling the model; MUTABLE!
 
     Returns:
-      the model output, either as a raw string or parsed into the given `output_format` class
+      (T, base.JSONDict): a tuple of (
+          the model output, either as a raw string or parsed into the given `output_format` class,
+          a JSON dict with the chat history, INCLUDING the response so conversation can continue)
 
     Raises:
       Error: if the model does not support the given inputs, or if there is any error calling
@@ -189,7 +198,11 @@ class LMStudioWorker(ai.AIWorker):
       # The value should be between 0 and 1.
       temperature=model.config['temperature'],
     )
-    chat = lmstudio.Chat(system_prompt)
+    chat: lmstudio.Chat = (
+      lmstudio.Chat.from_history(cast('lmstudio.ChatHistoryDataDict', chat_history))
+      if chat_history
+      else lmstudio.Chat(system_prompt)
+    )
     chat.add_user_message(
       user_prompt,
       images=[lmstudio.prepare_image(b) for b in images] if images else None,  # type: ignore[arg-type]
@@ -204,13 +217,22 @@ class LMStudioWorker(ai.AIWorker):
         # this is a tool-using call
         if output_format is not str:
           raise Error('Tools and return non-str output: unsupported')
-        return _CallLMSAct(llm, chat, config, tools)  # type: ignore[return-value]
+        # tools use does not produce structured chat history; return empty dict for history
+        tool_result, tool_calls = _CallLMSAct(llm, chat, config, tools)
+        chat.add_assistant_response(tool_result, tool_call_requests=tool_calls)
+        return (tool_result, cast('base.JSONDict', chat._get_history()))  # type: ignore[return-value]  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
       # this is a normal call without tools: call, parse and return the result
       result: lmstudio.PredictionResult = _CallLMSRespond(llm, chat, config, output_format)
+      chat.add_assistant_response(result)
       return (
-        ai.RE_THINK.sub('', result.content).strip()  # remove any <think>...</think> part
-        if output_format is str  # type: ignore[return-value]
-        else output_format.model_validate(result.parsed)  # type: ignore[attr-defined]
+        (
+          ai.RE_THINK.sub('', result.content).strip()  # remove any <think>...</think> part
+          if output_format is str  # type: ignore[return-value]
+          else output_format.model_validate(result.parsed)  # type: ignore[attr-defined]
+        ),
+        # not a good idea to access the private _get_history() method, but there was not better
+        # way I could find
+        cast('base.JSONDict', chat._get_history()),  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
       )
     except lmstudio.LMStudioServerError as err:
       raise Error(f'Error calling model {model.model_id!r}: {err}') from err
@@ -242,7 +264,7 @@ def _CallLMSAct(
   chat: lmstudio.Chat,
   config: lmstudio.LlmPredictionConfigDict,
   tools: list[ai.AnyCallable],
-) -> str:
+) -> tuple[str, list[_sdk_models.ToolCallRequestData]]:
   """Call the LMStudio LLM using the Act API to support tool use.
 
   Args:
@@ -257,6 +279,7 @@ def _CallLMSAct(
   """
   messages: list[str] = []
   hanging_calls: dict[str, str] = {}
+  tool_calls: list[_sdk_models.ToolCallRequestData] = []
 
   def _Act(message: lmstudio.AssistantResponse | lmstudio.ToolResultMessage) -> None:
     method_call: str
@@ -280,6 +303,7 @@ def _CallLMSAct(
         # this has to be a ToolCallRequestData
         if not content.tool_call_request.id:
           raise Error(f'Tool call missing id: {content!r}')
+        tool_calls.append(content)
         args: str = (
           ', '.join(f'{f}={v!r}' for f, v in content.tool_call_request.arguments.items())
           if content.tool_call_request.arguments
@@ -291,7 +315,7 @@ def _CallLMSAct(
 
   act_result: lmstudio.ActResult = llm.act(chat, config=config, tools=tools, on_message=_Act)
   logging.debug(f'Predicted tool calls: {act_result.rounds}')
-  return '\n'.join(messages)  # type: ignore[return-value]
+  return ('\n'.join(messages), tool_calls)  # type: ignore[return-value]
 
 
 def _ExtractModelInfo(model: lmstudio.LLM, config: ai.AIModelConfig) -> ai.LoadedModel:
@@ -324,13 +348,11 @@ def _ExtractModelInfo(model: lmstudio.LLM, config: ai.AIModelConfig) -> ai.Loade
       'auto-tagging: you should select a vision model with at least 32k context length'
     )
   new_config: ai.AIModelConfig = config.copy()
-  new_config.update(
-    {
-      'vision': model_info.vision,
-      'tooling': model_info.trained_for_tool_use,
-      'context': n_ctx,
-    }
-  )
+  new_config.update({
+    'vision': model_info.vision,
+    'tooling': model_info.trained_for_tool_use,
+    'context': n_ctx,
+  })
   if not new_config['seed'] or new_config['seed'] <= 1:  # for safety, but should never happen
     raise Error('Loaded LMStudio model config must have a seed')
   return ai.LoadedModel(

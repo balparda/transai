@@ -176,22 +176,27 @@ from transai.core import ai, lms, llama
 
 # --- Using LM Studio ---
 with lms.LMStudioWorker() as worker:
-  config, metadata = worker.LoadModel(ai.MakeAIModelConfig(
-    model_id='qwen3-vl-32b-instruct@Q8_0',
-    vision=True,
-    temperature=0.5,  # only override the ones you care about!
-    # all other fields will have sensible defaults; currently also supported are:
-    # seed, context, gpu_ratio, gpu_layers, use_mmap, fp16, flash, spec_tokens, kv_cache
-  ))
+  config, metadata = worker.LoadModel(
+    ai.MakeAIModelConfig(
+      model_id='qwen3-vl-32b-instruct@q8_0',
+      vision=True,
+      temperature=0.5,  # only override the ones you care about!
+      # all other fields will have sensible defaults; currently also supported are:
+      # seed, context, gpu_ratio, gpu_layers, use_mmap, fp16, flash, spec_tokens, kv_cache
+    )
+  )
   # ... use worker.ModelCall() ...
 
 # --- Using llama.cpp ---
 import pathlib
+
 with llama.LlamaWorker(pathlib.Path('~/.lmstudio/models/')) as worker:
-  config, metadata = worker.LoadModel(ai.AIModelConfig(
-    model_id='qwen3-8b@Q8_0',
-    # ... same config field possibilities ...
-  ))
+  config, metadata = worker.LoadModel(
+    ai.AIModelConfig(
+      model_id='qwen3-8b@q8_0',
+      # ... same config field possibilities ...
+    )
+  )
   # ... use worker.ModelCall() ...
 ```
 
@@ -223,7 +228,7 @@ class CityInfo(pydantic.BaseModel):
 with lms/llama.*Worker() as worker:  # open...
   worker.LoadModel(...)              # load model...
   result: CityInfo = worker.ModelCall(
-      'qwen3-8b@Q8_0',
+      'qwen3-8b@q8_0',
       'Extract a city information, its country, population, and list of districts.',
       'Tell me about Paris, France.',
       CityInfo,
@@ -240,7 +245,7 @@ import pathlib
 with lms/llama.*Worker() as worker:  # open...
   worker.LoadModel(...)              # load model...
   response: str = worker.ModelCall(
-    'qwen3-vl-32b-instruct@Q8_0', 'Describe what you see.', 'What is in this image?', str,
+    'qwen3-vl-32b-instruct@q8_0', 'Describe what you see.', 'What is in this image?', str,
     images=[pathlib.Path('photo.jpg')],  # or raw bytes, or file path strings
   )
 print(response)
@@ -276,7 +281,7 @@ with lms/llama.*Worker() as worker:  # open...
   worker.LoadModel(...)              # load model...
   # tools must be a list of callables or strings; the model may call them zero or more times
   response: str = worker.ModelCall(
-    'qwen3-8b@Q8_0',
+    'qwen3-8b@q8_0',
     'You are a helpful assistant.',
     'What is 23°C in Fahrenheit? Also, what is the GCD of 48 and 36?',
     str,

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2026 Daniel Balparda <balparda@github.com>
+# SPDX-FileCopyrightText: Copyright 2026 <balparda@github.com> & <BellaKeri@github.com>
 # SPDX-License-Identifier: Apache-2.0
 """Base AI library."""
 
@@ -346,7 +346,8 @@ class AIWorker(abc.ABC):
     *,
     images: list[AIImageInput] | None = None,
     tools: list[AIToolInput] | None = None,
-  ) -> T:
+    chat_history: base.JSONDict | None = None,
+  ) -> tuple[T, base.JSONDict]:
     """Make a call to the model.
 
     Args:
@@ -361,9 +362,16 @@ class AIWorker(abc.ABC):
       tools (default=None): optional list of tools (methods) to use during the call;
           only supported if the model has tool capability; mandates str `output_format`;
           also make sure the methods are all typed and have proper docstrings for best results
+      chat_history (default=None): optional chat history to provide as context for the call;
+          should be a JSON dict with the same format as the one returned by this method;
+          if not given both `system_prompt` and `user_prompt` will be used as the initial messages;
+          BEWARE, if given, `system_prompt` will be ignored, but `user_prompt` and `images` will
+          be added to the chat before calling the model; MUTABLE!
 
     Returns:
-      the model output, either as a raw string or parsed into the given `output_format` class
+      (T, base.JSONDict): a tuple of (
+          the model output, either as a raw string or parsed into the given `output_format` class,
+          a JSON dict with the chat history, INCLUDING the response so conversation can continue)
 
     Raises:
       Error: if the `model_id` is not found, if the model does not support the given inputs,
@@ -389,7 +397,11 @@ class AIWorker(abc.ABC):
     with timer.Timer(f'Model {model_id!r} call') as call_timer:
       try:
         args = [loaded, system_prompt, user_prompt, output_format, new_seed]
-        kwargs = {'images': images, 'tools': [_GetCallable(t) for t in tools] if tools else None}
+        kwargs = {
+          'images': images,
+          'tools': [_GetCallable(t) for t in tools] if tools else None,
+          'chat_history': chat_history,
+        }
         return (  # type: ignore[no-any-return]
           self._Call(*args, **kwargs)  # type: ignore[arg-type]
           if self._timeout is None
@@ -414,7 +426,8 @@ class AIWorker(abc.ABC):
     *,
     images: list[AIImageInput] | None = None,
     tools: list[AnyCallable] | None = None,
-  ) -> T:
+    chat_history: base.JSONDict | None = None,
+  ) -> tuple[T, base.JSONDict]:
     """Make a call to the model.
 
     Args:
@@ -429,9 +442,16 @@ class AIWorker(abc.ABC):
       tools (default=None): optional list of tools (methods) to use during the call;
           only supported if the model has tool capability; mandates str `output_format`;
           also make sure the methods are all typed and have proper docstrings for best results
+      chat_history (default=None): optional chat history to provide as context for the call;
+          should be a JSON dict with the same format as the one returned by this method;
+          if not given both `system_prompt` and `user_prompt` will be used as the initial messages;
+          BEWARE, if given, `system_prompt` will be ignored, but `user_prompt` and `images` will
+          be added to the chat before calling the model; MUTABLE!
 
     Returns:
-      the model output, either as a raw string or parsed into the given `output_format` class
+      (T, base.JSONDict): a tuple of (
+          the model output, either as a raw string or parsed into the given `output_format` class,
+          a JSON dict with the chat history, INCLUDING the response so conversation can continue)
 
     Raises:
       Error: if the model does not support the given inputs, or if there is any error calling

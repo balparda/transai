@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2026 Daniel Balparda <balparda@github.com>
+# SPDX-FileCopyrightText: Copyright 2026 <balparda@github.com> & <BellaKeri@github.com>
 # SPDX-License-Identifier: Apache-2.0
 """llama.cpp AI library."""
 
@@ -231,15 +231,13 @@ class LlamaWorker(ai.AIWorker):
     has_reasoning: bool = any(x in md_text for x in _REASONING_KEYWORDS)
     # finalize config and metadata, store and return
     new_config: ai.AIModelConfig = config.copy()
-    new_config.update(
-      {
-        'model_path': gguf_path,
-        'clip_path': clip_path,
-        'vision': is_vision,
-        'tooling': has_tooling,
-        'reasoning': has_reasoning,
-      }
-    )
+    new_config.update({
+      'model_path': gguf_path,
+      'clip_path': clip_path,
+      'vision': is_vision,
+      'tooling': has_tooling,
+      'reasoning': has_reasoning,
+    })
     if not new_config['seed'] or new_config['seed'] <= 1:  # for safety, but should never happen
       raise Error('Loaded llama.cpp model config must have a seed')
     return ai.LoadedModel(
@@ -260,7 +258,8 @@ class LlamaWorker(ai.AIWorker):
     *,
     images: list[ai.AIImageInput] | None = None,
     tools: list[ai.AnyCallable] | None = None,
-  ) -> T:
+    chat_history: base.JSONDict | None = None,
+  ) -> tuple[T, base.JSONDict]:
     """Make a call to the model.
 
     Args:
@@ -275,9 +274,16 @@ class LlamaWorker(ai.AIWorker):
       tools (default=None): optional list of tools (methods) to use during the call;
           only supported if the model has tool capability; mandates str `output_format`;
           also make sure the methods are all typed and have proper docstrings for best results
+      chat_history (default=None): optional chat history to provide as context for the call;
+          should be a JSON dict with the same format as the one returned by this method;
+          if not given both `system_prompt` and `user_prompt` will be used as the initial messages;
+          BEWARE, if given, `system_prompt` will be ignored, but `user_prompt` and `images` will
+          be added to the chat before calling the model; MUTABLE!
 
     Returns:
-      the model output, either as a raw string or parsed into the given `output_format` class
+      (T, base.JSONDict): a tuple of (
+          the model output, either as a raw string or parsed into the given `output_format` class,
+          a JSON dict with the chat history, INCLUDING the response so conversation can continue)
 
     Raises:
       Error: if the model does not support the given inputs, or if there is any error calling
@@ -286,7 +292,11 @@ class LlamaWorker(ai.AIWorker):
     if call_seed <= 1:  # for safety, but should never happen
       raise Error('call_seed must be a positive integer')
     # build messages, start with system prompt
-    messages: list[base.JSONDict] = [{'role': 'system', 'content': system_prompt}]
+    messages: list[base.JSONDict] = (
+      cast('list[base.JSONDict]', chat_history.get('messages', []))
+      if chat_history
+      else [{'role': 'system', 'content': system_prompt}]
+    )
     if images:
       # vision request: multi-modal user message
       if not model.config['vision']:
@@ -301,9 +311,10 @@ class LlamaWorker(ai.AIWorker):
           if isinstance(img, (str, pathlib.Path))
           else img
         )
-        parts.append(
-          {'type': 'image_url', 'image_url': {'url': _ImageToDataURI(img_bytes, 'image/png')}}
-        )
+        parts.append({
+          'type': 'image_url',
+          'image_url': {'url': _ImageToDataURI(img_bytes, 'image/png')},
+        })
       # add the parts (text + images) as a single user message with mixed content
       messages.append({'role': 'user', 'content': parts})
     else:
@@ -325,7 +336,8 @@ class LlamaWorker(ai.AIWorker):
           raise Error(
             'No valid tools found; make sure the functions are properly typed and have docstrings'
           )
-        return _CallLlamaAct(  # type: ignore[return-value]
+        # tools call: messages is extended in-place with full conversation history
+        act_output: str = _CallLlamaAct(
           llm,
           messages,
           [t.to_dict() for t in llm_tools],
@@ -334,6 +346,8 @@ class LlamaWorker(ai.AIWorker):
           call_seed,
           self._verbose,
         )
+        messages.append({'role': 'assistant', 'content': act_output})
+        return (act_output, chat_history or {'messages': messages})  # type: ignore[return-value]
       # non-tool call
       schema: base.JSONDict | None = None
       if output_format is not str:
@@ -355,7 +369,14 @@ class LlamaWorker(ai.AIWorker):
         )
       # return content according to the output format
       content: str = _ExtractContent(result)
-      return content if output_format is str else output_format.model_validate(json.loads(content))  # type: ignore[attr-defined,return-value]
+      if output_format is str:
+        # content is already a string
+        messages.append({'role': 'assistant', 'content': content})
+        return (content, chat_history or {'messages': messages})  # type: ignore[attr-defined,return-value]
+      # content is a JSON object in string form, so parse it and validate with the pydantic model
+      json_content: base.JSONDict = cast('base.JSONDict', json.loads(content))
+      messages.append({'role': 'assistant', 'content': json_content})
+      return (output_format.model_validate(json_content), chat_history or {'messages': messages})  # type: ignore[attr-defined,return-value]
     except (ValueError, RuntimeError) as err:
       raise Error(f'Error calling model {model.model_id!r}: {err}') from err
 
@@ -537,13 +558,11 @@ def _CallLlamaAct(
       accumulated.append(content)
     if not tool_calls:
       break  # no more tool calls, we're done!
-    messages.append(
-      {
-        'role': 'assistant',
-        'content': content or '',
-        'tool_calls': tool_calls,
-      }
-    )
+    messages.append({
+      'role': 'assistant',
+      'content': content or '',
+      'tool_calls': tool_calls,
+    })
     _ExecuteToolCalls(tool_calls, tool_map, messages)  # execute calls, append results
   # ended back-and-forth between model and tools; return accumulated content
   return '\n'.join(accumulated)
@@ -631,14 +650,12 @@ def _ExecuteToolCalls(
       logging.error(f'Error: {func_name!r} raised: {err}')
       tool_result = err  # we will feed the exception info back to the model as the tool result
     logging.info(f'Tool {func_name}({args_repr}) -> {tool_result!r} (# {call_id})')
-    messages.append(
-      {
-        'role': 'tool',
-        'tool_call_id': call_id,
-        'name': func_name,
-        'content': repr(tool_result),
-      }
-    )
+    messages.append({
+      'role': 'tool',
+      'tool_call_id': call_id,
+      'name': func_name,
+      'content': repr(tool_result),
+    })
 
 
 def _ExtractContent(result: llama_types.CreateChatCompletionResponse) -> str:

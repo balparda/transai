@@ -100,6 +100,6 @@ def Query(  # documentation is help/epilog/args # noqa: D103
       str,
       images=list(images) if images else None,
       tools=tools,  # type: ignore[arg-type]
-    )
+    )[0]
     config.console.print(response)
     config.console.print()

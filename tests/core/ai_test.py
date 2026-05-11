@@ -19,7 +19,7 @@ import lmstudio
 import pydantic
 import pytest
 from transcrypto.core import modmath
-from transcrypto.utils import saferandom
+from transcrypto.utils import base, saferandom
 
 from transai.core import ai
 
@@ -53,9 +53,10 @@ class _ConcreteWorker(ai.AIWorker):
     *,
     images: list[ai.AIImageInput] | None = None,  # noqa: ARG002
     tools: list[ai.AnyCallable] | None = None,  # noqa: ARG002
-  ) -> T:
-    """Echo back the configured return value."""  # noqa: DOC201
-    return self._call_return  # type: ignore[return-value]
+    chat_history: base.JSONDict | None = None,  # noqa: ARG002
+  ) -> tuple[T, base.JSONDict]:
+    """Echo back the configured return value as a (result, history) tuple."""  # noqa: DOC201
+    return (self._call_return, {})  # type: ignore[return-value]
 
 
 def _MakeLlamaModel(config: ai.AIModelConfig | None = None) -> ai.LoadedModel:
@@ -480,13 +481,14 @@ def testRegisterModelRaisesOnBadSeed() -> None:
 
 
 def testModelCallDelegatesToCall() -> None:
-  """ModelCall() must delegate to _Call() for a known model."""
+  """ModelCall() must delegate to _Call() for a known model and return a (result, history) tuple."""
   w = _ConcreteWorker()
   w._call_return = 'hello'
   loaded: ai.LoadedModel = _MakeLlamaModel()
   w._loaded_models[ai.DEFAULT_TEXT_MODEL] = loaded
-  result: str = w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str)
+  result, history = w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str)
   assert result == 'hello'
+  assert isinstance(history, dict)
 
 
 def testModelCallRaisesForUnknownModel() -> None:
@@ -695,8 +697,9 @@ def testModelCallNoTimeoutCallsFuncDirectly() -> None:
   w._call_return = 'answer'
   w._loaded_models[ai.DEFAULT_TEXT_MODEL] = _MakeLlamaModel()
   with mock.patch('transai.core.ai.func_timeout.func_timeout') as ft_mock:
-    result: str = w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str)
+    result, history = w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str)
   assert result == 'answer'
+  assert isinstance(history, dict)
   ft_mock.assert_not_called()
 
 
@@ -723,3 +726,38 @@ def testModelCallRaisesOnTimeout() -> None:
     pytest.raises(ai.Error, match='call timed out'),
   ):
     w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str)
+
+
+# ---------------------------------------------------------------------------
+# chat_history — pass-through and tuple return
+# ---------------------------------------------------------------------------
+
+
+def testModelCallPassesChatHistoryToCall() -> None:
+  """ModelCall() must forward chat_history kwarg to _Call()."""
+  w = _ConcreteWorker()
+  w._call_return = 'chat reply'
+  loaded: ai.LoadedModel = _MakeLlamaModel()
+  w._loaded_models[ai.DEFAULT_TEXT_MODEL] = loaded
+  history_in: base.JSONDict = {'messages': [{'role': 'user', 'content': 'hi'}]}
+  with mock.patch.object(w, '_Call', return_value=('chat reply', history_in)) as call_mock:
+    result, history_out = w.ModelCall(
+      ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str, chat_history=history_in
+    )
+  call_mock.assert_called_once()
+  _, kwargs = call_mock.call_args
+  assert kwargs.get('chat_history') is history_in
+  assert result == 'chat reply'
+  assert history_out is history_in
+
+
+def testModelCallReturnsHistoryFromCall() -> None:
+  """ModelCall() must pass through the chat history dict returned by _Call()."""
+  w = _ConcreteWorker()
+  w._call_return = 'response'
+  loaded: ai.LoadedModel = _MakeLlamaModel()
+  w._loaded_models[ai.DEFAULT_TEXT_MODEL] = loaded
+  # _ConcreteWorker._Call returns ({}, ...) — just verify the tuple is passed through
+  result, history = w.ModelCall(ai.DEFAULT_TEXT_MODEL, 'sys', 'user', str)
+  assert result == 'response'
+  assert isinstance(history, dict)  # empty dict from _ConcreteWorker._Call

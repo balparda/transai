@@ -12,7 +12,7 @@ build-backend = "poetry.core.masonry.api"
 [project]
 
 name = "transai"
-version = "1.2.0"  # also update src/transai/__init__.py
+version = "1.3.0"  # also update src/transai/__init__.py
 
 description = "AI library and helpers (Python/Poetry/Typer - LM Studio & llama.cpp)"
 license = "Apache-2.0"

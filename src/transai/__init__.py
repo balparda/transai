@@ -1,7 +1,7 @@
-# SPDX-FileCopyrightText: Copyright 2026 Daniel Balparda <balparda@github.com>
+# SPDX-FileCopyrightText: Copyright 2026 <balparda@github.com> & <BellaKeri@github.com>
 # SPDX-License-Identifier: Apache-2.0
 """<Module name / short purpose>."""
 
 __all__: list[str] = ['__author__', '__version__']
-__version__ = '1.2.0'  # also update pyproject.toml
+__version__ = '1.3.0'  # also update pyproject.toml
 __author__ = 'Daniel Balparda <balparda@github.com>, BellaKeri <BellaKeri@github.com>'
