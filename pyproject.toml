@@ -67,6 +67,9 @@ dependencies = [
 
   "rich>=15.0",
 
+  # TODO: huggingface-hub (>=1.17.0) depends on click (>=8.4.0)
+  "huggingface-hub>=1.16",  # download tiny GGUF test models from HF Hub
+
 ]
 
 ####################################################################################################
@@ -127,8 +130,6 @@ pyinstrument = "^5.1"
 typeguard = "^4.5"
 
 # project-specific dev-only
-# TODO: huggingface-hub (>=1.17.0) depends on click (>=8.4.0)
-huggingface-hub = "^1.16"  # download tiny GGUF test models from HF Hub
 types-tqdm = "^4.68"
 
 [tool.poetry.requires-plugins]

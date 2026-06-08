@@ -70,17 +70,7 @@ jobs:
       - name: Install Poetry and build dependencies for wheel building
         run: |
           pip install --no-cache-dir poetry
-          poetry install --no-root --with dev
           poetry build --clean -vv
-
-      - name: Free up disk space
-        run: |
-          df -h
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          sudo rm -rf /usr/share/dotnet
-          sudo docker system prune -a -f
-          df -h
 
       - name: Install built wheel into test venv and run integration tests against installed wheel
         # Note: we do not run the larger test_larger_model.py here, even though it is part of
