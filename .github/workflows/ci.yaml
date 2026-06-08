@@ -32,14 +32,14 @@ jobs:
       - name: Install Poetry
         run: pip install poetry
 
-      - name: Install deps
-        run: poetry install
+      - name: Install deps (but do not build extensions)
+        run: poetry install --no-root --with dev
 
       - name: Lint
         run: poetry run ruff check .
 
       - name: Format
-        run: poetry run ruff format --check .
+        run: poetry run ruff format --check --diff .
 
       - name: Typecheck
         run: poetry run mypy src tests tests_integration
@@ -48,7 +48,6 @@ jobs:
         run: poetry run pytest --typeguard-packages=transai --cov=src --cov-report=term-missing -q tests
 
   integration:
-    needs: test
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -68,11 +67,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
           # no pip cache in this job: keeps disk usage down
 
-      - name: Install Poetry
-        run: pip install --no-cache-dir poetry
-
-      - name: Install deps
-        run: poetry install --no-cache
+      - name: Install Poetry and build dependencies for wheel building
+        run: |
+          pip install --no-cache-dir poetry
+          poetry build --clean -vv
 
       - name: Free up disk space
         run: |
@@ -83,10 +81,14 @@ jobs:
           sudo docker system prune -a -f
           df -h
 
-      - name: Build wheel
-        run: poetry build -f wheel
-
-      - name: Integration tests (installed CLI)
+      - name: Install built wheel into test venv and run integration tests against installed wheel
         # Note: we do not run the larger test_larger_model.py here, even though it is part of
         # the integration suite, b/c it downloads larger models
-        run: poetry run pytest -q tests_integration/test_installed_cli.py
+        run: |
+          python -m venv .venv-wheel-test
+          . .venv-wheel-test/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install dist/*.whl
+          python -m pip install pytest
+          python -m pytest -vvvv tests_integration/test_installed_cli.py
+          deactivate

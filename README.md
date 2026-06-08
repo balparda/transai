@@ -792,7 +792,7 @@ make fmt   # equivalent to: poetry run ruff format .
 To check formatting without rewriting:
 
 ```sh
-poetry run ruff format --check .
+poetry run ruff format --check --diff .
 ```
 
 #### Type checking

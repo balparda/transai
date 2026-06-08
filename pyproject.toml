@@ -5,14 +5,14 @@
 ####################################################################################################
 [build-system]
 
-requires = [ "poetry-core>=2.3" ]
+requires = [ "poetry-core>=2.4" ]
 build-backend = "poetry.core.masonry.api"
 
 ####################################################################################################
 [project]
 
 name = "transai"
-version = "1.3.0"  # also update src/transai/__init__.py
+version = "1.3.1"  # also update src/transai/__init__.py
 
 description = "AI library and helpers (Python/Poetry/Typer - LM Studio & llama.cpp)"
 license = "Apache-2.0"
@@ -46,19 +46,26 @@ license-files = [ "LICENSE" ]
 
 dependencies = [
 
-  "transcrypto>=2.6.0",
+  "transcrypto>=2.6.3",
 
   # best place for project dependencies, if possible
   # development-only dependencies go in the [tool.poetry.group.dev.dependencies] section below
 
   "Pillow>=12.2",
   "pydantic>=2.13",
-  "tqdm>=4.67",
+  "tqdm>=4.68",
   "func-timeout>=4.3",
 
   # the supported backends
-  "llama-cpp-python>=0.3.23",
+  "llama-cpp-python>=0.3.28",
   "lmstudio>=1.5.0",
+
+  # TODO: pinned version because 0.26 is a mess, inline click and tests give a message that
+  #    can only be fixed by disabling typeguard; probably have to fix clibase/transcrypto up
+  "typer==0.25.1",   # if this changes, also change: [tool.poetry.dependencies]
+  "click==8.3.3",  # TODO: >=8.4 is waiting for typer type-stubs compatibility (probably >0.25.1)
+
+  "rich>=15.0",
 
 ]
 
@@ -90,7 +97,7 @@ PyPI = "https://pypi.org/project/transai/"
 ####################################################################################################
 [tool.poetry]
 
-requires-poetry = "^2.1"
+requires-poetry = "^2.4"
 
 packages = [{ include = "transai", from = "src" }]
 include = [
@@ -104,11 +111,12 @@ include = [
 # prefer to add dependencies inside the [project.dependencies] section
 
 python = "^3.12"  # if version changes, remember to change README.md
+typer = { version = "0.25.1", extras = ["all"] }
 
 [tool.poetry.group.dev.dependencies]
 
 # basic, all projects should have
-ruff = "^0.15.12"
+ruff = "^0.15.16"
 mypy = "^2.1"
 pytest = "^9.0"
 pytest-cov = "^7.1"
@@ -119,8 +127,9 @@ pyinstrument = "^5.1"
 typeguard = "^4.5"
 
 # project-specific dev-only
-huggingface-hub = "^1.14"  # download tiny GGUF test models from HF Hub
-types-tqdm = "^4.67"
+# TODO: huggingface-hub (>=1.17.0) depends on click (>=8.4.0)
+huggingface-hub = "^1.16"  # download tiny GGUF test models from HF Hub
+types-tqdm = "^4.68"
 
 [tool.poetry.requires-plugins]
 poetry-plugin-export = "^1.10"
@@ -196,6 +205,7 @@ ignore = [
   "FBT003",   # allows boolean positional value in function call
   "PLR0913",  # Too many arguments in function definition (N > 5)
   "PLR0917",  # Too many positional arguments (N/5)
+  "PLW0717",  # Try clause contains too many statements (N>5)
 
   "TRY003",  # Avoid specifying long messages outside the exception class
   "TRY300",  # Consider moving this statement to an `else` block
