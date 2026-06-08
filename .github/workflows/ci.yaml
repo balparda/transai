@@ -70,6 +70,7 @@ jobs:
       - name: Install Poetry and build dependencies for wheel building
         run: |
           pip install --no-cache-dir poetry
+          poetry install --no-root --with dev
           poetry build --clean -vv
 
       - name: Free up disk space
