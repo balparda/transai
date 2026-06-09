@@ -9,7 +9,7 @@ import tempfile
 from unittest import mock
 
 import pytest
-from click import testing
+import typer.testing
 from transcrypto.utils import config as app_config
 from transcrypto.utils import logging as cli_logging
 
@@ -41,7 +41,7 @@ def testQueryRaisesErrorWhenNoLMSAndNoRoot() -> None:
     mock.patch.object(lms, 'LMStudioWorker') as lms_mock,
     mock.patch.object(llama, 'LlamaWorker') as llama_mock,
   ):
-    result: testing.Result = transai_test.CallCLI(['--no-lms', 'query', 'Make me a recipe.'])
+    result: typer.testing.Result = transai_test.CallCLI(['--no-lms', 'query', 'Make me a recipe.'])
   assert result.exit_code == 0  # CLIErrorGuard catches error and returns normally
   lms_mock.assert_not_called()  # neither worker should have been created
   llama_mock.assert_not_called()
@@ -57,7 +57,7 @@ def testQueryUsesLMStudioWorker() -> None:
   worker_mock.LoadModel.return_value = (ai.MakeAIModelConfig(), {})
   worker_mock.ModelCall.return_value = ('Paris', {})
   with mock.patch.object(lms, 'LMStudioWorker', return_value=worker_mock):
-    result: testing.Result = transai_test.CallCLI(['query', 'What is the capital of France?'])
+    result: typer.testing.Result = transai_test.CallCLI(['query', 'What is the capital of France?'])
   assert result.exit_code == 0, result.output
   worker_mock.LoadModel.assert_called_once()
   worker_mock.ModelCall.assert_called_once()
@@ -70,7 +70,7 @@ def testQueryUsesLlamaWorkerWhenNoLMS(tmp_path: pathlib.Path) -> None:
   worker_mock.LoadModel.return_value = (ai.MakeAIModelConfig(), {})
   worker_mock.ModelCall.return_value = ('Bonjour', {})
   with mock.patch.object(llama, 'LlamaWorker', return_value=worker_mock):
-    result: testing.Result = transai_test.CallCLI(
+    result: typer.testing.Result = transai_test.CallCLI(
       # arbitrary query, with --no-lms and --root to trigger LlamaWorker path
       [
         '--no-lms',
@@ -93,7 +93,7 @@ def testQueryWarnsSeedWithNoFreeResources() -> None:
   worker_mock.ModelCall.return_value = ('seeded answer', {})
   with mock.patch.object(lms, 'LMStudioWorker', return_value=worker_mock):
     # --seed 5000 sets config.seed=5000; free_resources defaults to False → warning fires
-    result: testing.Result = transai_test.CallCLI(['--seed', '5000', 'query', 'hello'])
+    result: typer.testing.Result = transai_test.CallCLI(['--seed', '5000', 'query', 'hello'])
   assert result.exit_code == 0, result.output
   worker_mock.LoadModel.assert_called_once()
   worker_mock.ModelCall.assert_called_once()
@@ -106,7 +106,7 @@ def testQueryWithToolsPassesToolsToModelCall() -> None:
   worker_mock.LoadModel.return_value = (ai.MakeAIModelConfig(tooling=True), {})
   worker_mock.ModelCall.return_value = ('result with tools', {})
   with mock.patch.object(lms, 'LMStudioWorker', return_value=worker_mock):
-    result: testing.Result = transai_test.CallCLI(
+    result: typer.testing.Result = transai_test.CallCLI(
       # query with two tools specified; we just want to verify these are passed to ModelCall kwargs
       [
         'query',
@@ -134,7 +134,7 @@ def testQueryWithImagesAndTools() -> None:
     tmp_img.write(b'\x89PNG\r\n\x1a\n' + b'\x00' * 20)
   try:
     with mock.patch.object(lms, 'LMStudioWorker', return_value=worker_mock):
-      result: testing.Result = transai_test.CallCLI(
+      result: typer.testing.Result = transai_test.CallCLI(
         # test that both --images and --tools can be provided together
         [
           'query',

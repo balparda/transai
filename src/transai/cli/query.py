@@ -7,8 +7,8 @@ from __future__ import annotations
 import logging
 import pathlib
 
-import click
 import typer
+import typer._click.core
 from transcrypto.cli import clibase
 
 from transai import transai
@@ -27,7 +27,7 @@ from transai.core import ai, llama, lms
 @clibase.CLIErrorGuard
 def Query(  # documentation is help/epilog/args # noqa: D103
   *,
-  ctx: click.Context,
+  ctx: typer._click.core.Context,
   model_input: str = typer.Argument(..., help='Query input string; "user prompt"'),
   system_prompt: str = typer.Option(
     '',

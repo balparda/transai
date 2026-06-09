@@ -6,10 +6,10 @@ from __future__ import annotations
 
 from unittest import mock
 
-import click
 import pytest
 import typer
-from click import testing as click_testing
+import typer._click.core
+import typer.testing
 from transcrypto.utils import config as app_config
 from transcrypto.utils import logging as cli_logging
 from typer import testing
@@ -24,14 +24,14 @@ def reset_cli() -> None:
   app_config.ResetConfig()
 
 
-def CallCLI(args: list[str]) -> click_testing.Result:
+def CallCLI(args: list[str]) -> typer.testing.Result:
   """Call the CLI with args.
 
   Args:
       args (list[str]): CLI arguments.
 
   Returns:
-      click_testing.Result: CLI result.
+      typer.testing.Result: CLI result.
 
   """
   return testing.CliRunner().invoke(transai.app, args)
@@ -66,7 +66,7 @@ def AssertRandomStrPrintedValue(printed: object, expected_prefix: str) -> None:
 
 def test_version_flag() -> None:
   """Test."""
-  result: click_testing.Result = CallCLI(['--version'])
+  result: typer.testing.Result = CallCLI(['--version'])
   assert result.exit_code == 0
   assert '.' in result.stdout
   assert result.stdout.strip()[0] == '1'
@@ -74,7 +74,7 @@ def test_version_flag() -> None:
 
 def test_version_flag_raises_exit() -> None:
   """Test version flag raises typer.Exit with exit code 0."""
-  ctx = mock.Mock(spec=click.Context)
+  ctx = mock.Mock(spec=typer._click.core.Context)
   with pytest.raises(typer.Exit) as exc_info:
     transai.Main(
       ctx=ctx,
@@ -108,7 +108,7 @@ def test_run_function() -> None:
 
 def test_version_flag_ignores_extra_args() -> None:
   """Test."""
-  result: click_testing.Result = CallCLI(['--version', 'markdown'])
+  result: typer.testing.Result = CallCLI(['--version', 'markdown'])
   assert result.exit_code == 0
   assert result.stdout.strip().startswith('1.')
   assert '.' in result.stdout.strip()[2:]
@@ -116,7 +116,7 @@ def test_version_flag_ignores_extra_args() -> None:
 
 def test_markdown_command_generates_docs() -> None:
   """Test markdown command generates documentation."""
-  result: click_testing.Result = CallCLI(['markdown'])
+  result: typer.testing.Result = CallCLI(['markdown'])
   assert result.exit_code == 0, result.output
   # Verify it contains markdown-like content
   assert 'transai' in result.stdout
